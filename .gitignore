@@ -1,0 +1,85 @@
+# ============================================================
+# Moirca .gitignore — 开源安全清单
+# ============================================================
+
+# --- 环境变量 & API 密钥 ---
+.env
+.env.local
+.env.*.local
+*.env
+# 保留配置模板
+!.env.example
+
+# --- 数据库文件（包含采集数据） ---
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# --- 爬取的第三方数据 ---
+**/data/crawled/kkdaxue_all.json
+**/data/crawled/kkdaxue_exploration.json
+**/data/knowledge_base.json
+**/data/university_graph.json
+**/data/admission.db
+**/data/graphs/
+**/data/sessions/
+**/data/uploads/
+**/data/pipelines/
+
+# --- 知乎数据 ---
+zhihu_data/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# --- Node / React ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# --- Claude / AI 工具配置 ---
+.claude/
+.opencode/
+.cursor/
+.copilot/
+
+# --- IDE ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# --- 日志 ---
+logs/
+*.log
+npm-debug.log*
+
+# --- 临时文件 ---
+temp/
+tmp/
+*.tmp
+*.bak
+*~
+
+# --- 文档计划（可选，含分析笔记） ---
+# 如需保留产品分析文档，注释下面这行
+# *.md  (默认保留所有 .md)
+
+# --- MiroFish 参考项目（只读） ---
+MiroFish-main/
