@@ -6,7 +6,10 @@ import sqlite3
 import os
 import json
 from pathlib import Path
-from ..config import Config, project_root
+from ..config import Config
+
+
+project_root = Path(__file__).resolve().parents[3]
 
 
 def get_db_path() -> str:
@@ -128,32 +131,6 @@ def init_db():
             created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(school, major, provider)
         );
-
-        -- 用户贡献志愿数据表（P2 数据回收飞轮核心）
-        CREATE TABLE IF NOT EXISTS contributed_volunteers (
-            contribution_id   INTEGER PRIMARY KEY AUTOINCREMENT,
-            anonymous_id      TEXT NOT NULL,
-            province          TEXT NOT NULL,
-            year              INTEGER NOT NULL,
-            subject_type      TEXT,
-            user_score        REAL,
-            user_rank         INTEGER,
-            school_code       TEXT,
-            school_name       TEXT,
-            group_code        TEXT,
-            major_codes       TEXT,
-            major_names       TEXT,
-            adjustment        BOOLEAN DEFAULT TRUE,
-            tier_label        TEXT,
-            export_json       TEXT,
-            is_verified       BOOLEAN DEFAULT FALSE,
-            verification_score REAL,
-            verification_notes TEXT,
-            created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE INDEX IF NOT EXISTS idx_contributed_province ON contributed_volunteers(province);
-        CREATE INDEX IF NOT EXISTS idx_contributed_anonymous ON contributed_volunteers(anonymous_id);
-        CREATE INDEX IF NOT EXISTS idx_contributed_verified ON contributed_volunteers(is_verified);
 
         -- Agent输出表
         CREATE TABLE IF NOT EXISTS agent_outputs (

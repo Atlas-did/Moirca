@@ -14,7 +14,6 @@ from pydantic import BaseModel
 from typing import Optional, List
 import json
 import os
-import sqlite3
 import threading
 import uuid
 import time
@@ -79,68 +78,6 @@ def _load_kkdaxue() -> dict:
     except Exception as e:
         logger.warning(f"kkdaxue 加载失败: {e}")
         _kkdaxue_cache = {}
-        return {}
-
-
-_contributed_cache: Optional[dict] = None
-
-
-def _load_contributed(province: str = "") -> dict:
-    """加载已验证的用户贡献数据，按专业代码索引 (P2新增)"""
-    global _contributed_cache
-    if _contributed_cache is not None:
-        return _contributed_cache
-    try:
-        from ..models.database import get_connection
-        conn = get_connection()
-        cursor = conn.cursor()
-        if province:
-            cursor.execute(
-                """SELECT school_name, major_names, verification_score, is_verified
-                   FROM contributed_volunteers
-                   WHERE province = ? AND is_verified = 1
-                   ORDER BY created_at DESC LIMIT 2000""",
-                (province,),
-            )
-        else:
-            cursor.execute(
-                """SELECT school_name, major_names, verification_score, is_verified
-                   FROM contributed_volunteers
-                   WHERE is_verified = 1
-                   ORDER BY created_at DESC LIMIT 5000"""
-            )
-        rows = cursor.fetchall()
-        conn.close()
-
-        data: dict = {}  # {prof_code: {count, verified_count, avg_score}}
-        import json
-        for school_name, major_names_json, vscore, verified in rows:
-            try:
-                majors = json.loads(major_names_json) if major_names_json else []
-            except (json.JSONDecodeError, TypeError):
-                majors = []
-            for major in majors:
-                if major not in data:
-                    data[major] = {'count': 0, 'verified_count': 0, 'scores': []}
-                data[major]['count'] += 1
-                if verified:
-                    data[major]['verified_count'] += 1
-                if vscore is not None:
-                    data[major]['scores'].append(vscore)
-
-        # 计算每个专业的平均验证分数
-        for major, info in data.items():
-            scores = info.pop('scores', [])
-            info['avg_score'] = round(sum(scores) / len(scores), 1) if scores else 0
-
-        _contributed_cache = data
-        if data:
-            logger.info(f"贡献数据加载: {sum(v['count'] for v in data.values())} 条, "
-                         f"{len(data)} 个专业")
-        return data
-    except Exception as e:
-        logger.warning(f"贡献数据加载失败: {e}")
-        _contributed_cache = {}
         return {}
 
 
@@ -242,9 +179,7 @@ def _run_agent_research(
 
         ctx = AgentContext(
             profession=pf, user_config=user_config,
-            kkdaxue_posts=major_posts,
-            contributed_data=_load_contributed(request.province).get(pf.name, {}),
-            knowledge_graph=graph,
+            kkdaxue_posts=major_posts, knowledge_graph=graph,
         )
 
         # 并行执行 5 个 Agent（LLM 调用是 I/O 密集）
@@ -320,9 +255,11 @@ def _build_evidence(r, graph, public_scoreline: Optional[dict] = None) -> List[E
         ))
 
     if public_scoreline:
-        score_text = f"{public_scoreline.get('year')} 年最低分 {public_scoreline.get('lowest_score')} / 位次 {public_scoreline.get('lowest_rank') or '—'}"
+        matched_school = public_scoreline.get("school") or ""
+        score_text = f"{matched_school + ' ' if matched_school else ''}{public_scoreline.get('year')} 年最低分 {public_scoreline.get('lowest_score')} / 位次 {public_scoreline.get('lowest_rank') or '—'}"
+        label = "公开分数线(专业级)" if public_scoreline.get("match_level") == "major" else "公开分数线"
         evidence.append(EvidenceItem(
-            type="public_data", label="公开分数线",
+            type="public_data", label=label,
             value=score_text,
             source=f"{public_scoreline.get('province')}省公开分数线",
         ))
@@ -407,10 +344,12 @@ def get_recommendations(request: RecommendRequest):
         economic_tier=request.economic_tier,
     )
 
-    # 3. 候选专业（排除不想要的门类）
+    # 3. 候选专业（排除不想要的学科门类/专业名）
     candidates = [
         pf for pf in graph.get_all_professions()
-        if pf.category not in profile["exclude_categories"]
+        if not DecisionTreeEngine.is_excluded(
+            pf.name, pf.category, pf.discipline, profile["exclude_categories"]
+        )
     ]
 
     subject_type = _infer_subject_type(request.exam_type)
@@ -421,9 +360,8 @@ def get_recommendations(request: RecommendRequest):
     )
 
     # 5. Agent 6 融合
-    contributed_stats = _load_contributed(request.province)
     alchemist = FusionAlchemist(user_config=user_config)
-    fusion_results = alchemist.fuse(all_agent_outputs, prof_features, contributed_stats)
+    fusion_results = alchemist.fuse(all_agent_outputs, prof_features)
     fusion_results = fusion_results[:request.top_n]
 
     # 6. 构建推荐列表
@@ -603,7 +541,9 @@ def _run_recommend_job(job_id: str, request: RecommendRequest):
 
         candidates = [
             pf for pf in graph.get_all_professions()
-            if pf.category not in profile["exclude_categories"]
+            if not DecisionTreeEngine.is_excluded(
+                pf.name, pf.category, pf.discipline, profile["exclude_categories"]
+            )
         ]
 
         subject_type = _infer_subject_type(request.exam_type)
@@ -622,9 +562,8 @@ def _run_recommend_job(job_id: str, request: RecommendRequest):
             _jobs[job_id]["message"] = "Agent 6 融合计算..."
         _persist_job(job_id)
 
-        contributed_stats = _load_contributed(request.province)
         alchemist = FusionAlchemist(user_config=user_config)
-        fusion_results = alchemist.fuse(all_agent_outputs, prof_features, contributed_stats)
+        fusion_results = alchemist.fuse(all_agent_outputs, prof_features)
         fusion_results = fusion_results[:request.top_n]
 
         with _jobs_lock:
@@ -750,179 +689,3 @@ def get_graph_stats():
 @router.post("/refresh")
 def refresh_recommendation_data():
     return refresh_recommendation_sources()
-
-
-# ============================================
-# 院校推荐（基于 major_scores 数据库）
-# ============================================
-
-class SchoolRecommendRequest(BaseModel):
-    province: str = "广东"
-    score: float = 585
-    subject: str = "物理"
-    rank: Optional[int] = None
-    top_n: int = 50
-
-
-class SchoolMajorInfo(BaseModel):
-    name: str
-    min_score: int
-    min_rank: Optional[int] = None
-    plan_count: Optional[int] = None
-
-
-class SchoolRecommendItem(BaseModel):
-    school: str
-    avg_score: float
-    min_score: int
-    max_score: int
-    majors: List[SchoolMajorInfo]
-    match_count: int
-
-
-class TierSummary(BaseModel):
-    total: int
-    selected: int
-
-
-class SchoolRecommendResponse(BaseModel):
-    province: str
-    score: float
-    subject: str
-    tiers: dict  # {"冲": [...], "稳": [...], "保": [...]}
-    summary: dict  # {"冲": TierSummary, "稳": TierSummary, "保": TierSummary}
-
-
-_subject_fallbacks = {
-    "物理": ["物理类", "理科", "综合"],
-    "物理类": ["物理类", "理科", "综合"],
-    "历史": ["历史类", "文科", "综合"],
-    "历史类": ["历史类", "文科", "综合"],
-    "理科": ["理科", "物理类", "综合"],
-    "文科": ["文科", "历史类", "综合"],
-    "综合": ["综合", "物理类", "理科", "历史类", "文科"],
-}
-
-
-def _resolve_subject(province: str, subject: str) -> str:
-    candidates = _subject_fallbacks.get(subject, [subject])
-    db_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'admission.db')
-    try:
-        db = sqlite3.connect(db_path)
-        for cand in candidates:
-            cnt = db.execute(
-                "SELECT COUNT(*) FROM major_scores WHERE province=? AND subject=? AND batch LIKE '%本科%' AND min_score > 0",
-                (province, cand),
-            ).fetchone()[0]
-            if cnt > 0:
-                db.close()
-                return cand
-        db.close()
-    except Exception:
-        pass
-    return candidates[0]
-
-
-@router.get("/schools", response_model=SchoolRecommendResponse)
-def recommend_schools(
-    province: str = "广东",
-    score: float = 585,
-    subject: str = "物理",
-    rank: Optional[int] = None,
-    top_n: int = 50,
-):
-    db_subject = _resolve_subject(province, subject)
-    db_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'admission.db')
-
-    try:
-        db = sqlite3.connect(db_path)
-
-        rows = db.execute("""
-            SELECT school, major, min_score, min_rank, plan_count
-            FROM major_scores
-            WHERE province = ? AND subject = ?
-            AND batch LIKE '%本科%' AND batch NOT LIKE '%提前%' AND batch NOT LIKE '%专科%'
-            AND min_score > 0
-            ORDER BY school, min_score DESC
-        """, (province, db_subject)).fetchall()
-        db.close()
-    except Exception:
-        return SchoolRecommendResponse(
-            province=province, score=score, subject=db_subject,
-            tiers={"冲": [], "稳": [], "保": []},
-            summary={"冲": {"total": 0, "selected": 0}, "稳": {"total": 0, "selected": 0}, "保": {"total": 0, "selected": 0}},
-        )
-
-    from collections import defaultdict
-    schools: dict[str, list] = defaultdict(list)
-    for school, major, ms, mr, pc in rows:
-        schools[school].append({
-            "name": major, "min_score": ms,
-            "min_rank": mr, "plan_count": pc,
-        })
-
-    school_stats = []
-    for name, majors in schools.items():
-        scores = [m["min_score"] for m in majors]
-        school_stats.append({
-            "school": name,
-            "majors": sorted(majors, key=lambda m: m["min_score"], reverse=True),
-            "avg_score": sum(scores) / len(scores),
-            "min_score": min(scores),
-            "max_score": max(scores),
-            "match_count": len(majors),
-        })
-
-    rush, steady, safe_ = [], [], []
-    for s in school_stats:
-        if s["min_score"] >= score + 10:
-            rush.append(s)
-        elif s["min_score"] >= score - 10:
-            steady.append(s)
-        else:
-            safe_.append(s)
-
-    rush.sort(key=lambda s: s["min_score"])
-    steady.sort(key=lambda s: s["avg_score"], reverse=True)
-    safe_.sort(key=lambda s: s["avg_score"], reverse=True)
-
-    per_tier = max(5, top_n // 3)
-    rush = rush[:per_tier]
-    steady = steady[:per_tier]
-    safe_ = safe_[:per_tier]
-
-    def _format(items):
-        return [
-            {
-                "school": s["school"],
-                "avg_score": round(s["avg_score"], 1),
-                "min_score": s["min_score"],
-                "max_score": s["max_score"],
-                "majors": [{
-                    "name": m["name"],
-                    "min_score": m["min_score"],
-                    "min_rank": m["min_rank"],
-                    "plan_count": m["plan_count"],
-                } for m in s["majors"][:8]],
-                "match_count": s["match_count"],
-            }
-            for s in items
-        ]
-
-    total_rush = sum(1 for s in school_stats if s["min_score"] >= score + 10)
-    total_steady = sum(1 for s in school_stats if score - 10 <= s["min_score"] < score + 10)
-    total_safe = sum(1 for s in school_stats if s["min_score"] < score - 10)
-
-    return SchoolRecommendResponse(
-        province=province, score=score, subject=db_subject,
-        tiers={
-            "冲": _format(rush),
-            "稳": _format(steady),
-            "保": _format(safe_),
-        },
-        summary={
-            "冲": {"total": total_rush, "selected": len(rush)},
-            "稳": {"total": total_steady, "selected": len(steady)},
-            "保": {"total": total_safe, "selected": len(safe_)},
-        },
-    )

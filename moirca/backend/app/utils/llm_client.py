@@ -31,11 +31,7 @@ class LLMClient:
         if not self.api_key and not use_local:
             raise ValueError("LLM_API_KEY 未配置")
 
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url, http_client=self._create_http_client())
-
-    def _create_http_client(self):
-        import httpx
-        return httpx.Client(proxy=None, trust_env=False, timeout=httpx.Timeout(600.0, connect=30.0))
+        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
 
     def chat(
         self,
@@ -50,27 +46,10 @@ class LLMClient:
             max_tokens=max_tokens,
         )
         content = response.choices[0].message.content
+        if not content:
+            return ""
         content = re.sub(r'<think>[\s\S]*?</think>', '', content).strip()
         return content
-
-    def chat_stream(
-        self,
-        messages: List[Dict[str, str]],
-        temperature: float = 0.7,
-        max_tokens: int = 2000,
-    ):
-        """真正的流式调用，逐 token yield"""
-        stream = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            stream=True,
-        )
-        for chunk in stream:
-            delta = chunk.choices[0].delta
-            if delta.content:
-                yield delta.content
 
     def chat_json(
         self,
@@ -85,7 +64,11 @@ class LLMClient:
             max_tokens=max_tokens,
             response_format={"type": "json_object"},
         )
-        raw = response.choices[0].message.content.strip()
+        raw = response.choices[0].message.content
+        if not raw:
+            raise ValueError("LLM 返回了空内容，无法解析为 JSON")
+        raw = raw.strip()
+        raw = re.sub(r'<think>[\s\S]*?</think>', '', raw).strip()
         raw = re.sub(r'^```(?:json)?\s*\n?', '', raw, flags=re.IGNORECASE)
         raw = re.sub(r'\n?```\s*$', '', raw).strip()
         try:

@@ -29,6 +29,23 @@ class DecisionTreeEngine:
         "D": {"label": "没有特别限制", "exclude_categories": []},
     }
 
+    @staticmethod
+    def is_excluded(name: str, category: str, discipline: str, exclude_tokens: list) -> bool:
+        """判断专业是否命中排除项。
+
+        排除项同时匹配「学科门类 / 一级学科 / 专业名」（包含匹配），
+        避免把“机械”“临床医学”这类专业名当门类比较而永远筛不掉。
+        """
+        if not exclude_tokens:
+            return False
+        haystacks = [category or "", discipline or "", name or ""]
+        for token in exclude_tokens:
+            if not token:
+                continue
+            if any(token in h for h in haystacks):
+                return True
+        return False
+
     @classmethod
     def analyze(cls, score: float, full_mark: float, province: str,
                 step1: str, step2: str, step3: str) -> dict:

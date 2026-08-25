@@ -170,3 +170,52 @@
 - 对比结论
 - 引用与数据版本
 
+---
+
+## 7. 页面上下文问答（浏览器插件 `moirca-webbridge`）
+
+供浏览器插件把「当前网页的选中文字/整页正文 + 用户问题」喂给现有 Agent 解读。
+只读、最小化：只传文本片段，后端不落库、不记录敏感字段。
+
+### `POST /api/context/ask`
+
+请求：
+```json
+{
+  "page_title": "XX大学2026年招生简章",
+  "page_url": "https://...",
+  "context_text": "……页面正文或选中文字（≤12000 字符，超出截断）……",
+  "question": "这个专业 610 分能上吗？招生计划有什么变化？",
+  "agent_id": "master"
+}
+```
+
+`agent_id` 取值：`master` / `zhang` / `data` / `risk` / `parents` / `senior` / `workplace`
+
+响应：
+```json
+{
+  "answer": "……Agent 解读……",
+  "model_used": "llm",
+  "agent_id": "master",
+  "agent_name": "主控 Agent",
+  "truncated": false
+}
+```
+
+`model_used`：`llm`（走大模型）或 `fallback`（未配置可用 key 时的规则降级答复，接口仍可用）。
+
+### `GET /api/context/ping`
+
+供插件在设置页检测后端连通性与 LLM 状态，不触发任何外部请求。
+
+响应：
+```json
+{
+  "ok": true,
+  "service": "moirca",
+  "llm_configured": false,
+  "agents": ["master", "zhang", "data", "risk", "parents", "senior", "workplace"]
+}
+```
+

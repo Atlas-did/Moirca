@@ -1,39 +1,15 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Star, StickyNote, TrendingUp, Search, RotateCcw, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, LayoutGrid, Table } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ScoreInputBar from './ScoreInputBar';
 import CardView from './CardView';
-import { getRecommendations, type RecommendItem, type RecommendResponse } from '@/api/recommend';
-import type { VolunteerRow } from '@/types';
 
 const SUBJECT_TYPES = ['全部', '物理类', '历史类'];
 const SUBJECT_REQS = ['物理', '化学', '生物', '历史', '政治', '地理'];
 const CITIES = ['江西', '广东', '北京', '上海', '浙江', '江苏', '湖北', '湖南'];
 const PAGE_SIZES = [10, 25, 50];
-
-function recommendToVolunteerRow(r: RecommendItem, idx: number): VolunteerRow {
-  return {
-    id: `backend_${r.major_code}_${idx}`,
-    schoolCode: r.major_code.slice(0, 4),
-    schoolName: r.school || '推荐院校',
-    batch: '本科批',
-    subjectType: '物理类',
-    planType: '普通类',
-    groupCode: 'AI',
-    groupName: '后端推荐组',
-    majorCode: r.major_code,
-    majorName: r.major,
-    planCount: 0,
-    fee: 0,
-    remark: `${r.reason} | 置信度 ${(r.confidence * 100).toFixed(0)}%`,
-    admissionTrend: Array(3).fill(Math.round(r.match_score)),
-    isStarred: r.tier === '保',
-    hasNote: !!r.risk_note,
-    noteContent: r.risk_note || '',
-  };
-}
 
 export default function VolunteerTable() {
   const { state, dispatch } = useApp();
@@ -41,9 +17,6 @@ export default function VolunteerTable() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [showTrendModal, setShowTrendModal] = useState<string | null>(null);
-  const [isLoadingRemote, setIsLoadingRemote] = useState(false);
-  const [remoteError, setRemoteError] = useState('');
-  const [reloadNonce, setReloadNonce] = useState(0);
 
   const ViewToggle = () => (
     <div className="flex items-center gap-0.5 ml-2">
@@ -53,68 +26,6 @@ export default function VolunteerTable() {
   );
   const [showNoteModal, setShowNoteModal] = useState<string | null>(null);
   const [noteInput, setNoteInput] = useState('');
-
-  const fallbackProfile = state.homeInput || {
-    score: '585',
-    province: '广东',
-    subject: '物理类',
-    rank: '',
-  };
-
-  const profileSignature = useMemo(
-    () => [
-      String(state.recommendMeta?.profile?.score ?? fallbackProfile.score),
-      String(state.recommendMeta?.profile?.province ?? fallbackProfile.province),
-      String(state.recommendMeta?.profile?.auto_tier ?? ''),
-      String(fallbackProfile.subject),
-      String(fallbackProfile.rank ?? ''),
-    ].join('|'),
-    [state.recommendMeta?.profile, fallbackProfile.score, fallbackProfile.province, fallbackProfile.subject, fallbackProfile.rank],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    const score = Number(state.recommendMeta?.profile?.score ?? fallbackProfile.score);
-    const province = String(state.recommendMeta?.profile?.province ?? fallbackProfile.province);
-
-    if (!score || Number.isNaN(score) || score < 100) return;
-
-    setIsLoadingRemote(true);
-    setRemoteError('');
-
-    getRecommendations({
-      score,
-      province,
-      keywords: [],
-      top_n: 15,
-    })
-      .then((data: RecommendResponse) => {
-        if (cancelled) return;
-        const rows = data.recommendations.map((r, i) => recommendToVolunteerRow(r, i));
-        dispatch({ type: 'LOAD_VOLUNTEER_DATA', payload: rows });
-        setPage(1);
-        dispatch({
-          type: 'SET_RECOMMEND_META',
-          payload: {
-            profile: data.profile,
-            tierSummary: data.tier_summary,
-            warnings: data.warnings,
-          },
-        });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const msg = err instanceof Error ? err.message : '拉取后端推荐失败';
-        setRemoteError(msg);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingRemote(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [dispatch, profileSignature, reloadNonce]);
 
   // Filter logic
   const filtered = useMemo(() => {
@@ -171,24 +82,6 @@ export default function VolunteerTable() {
     <div className="h-full flex flex-col bg-white">
       {/* AI Recommend Bar */}
       <ScoreInputBar />
-
-      {/* Backend sync status */}
-      {(isLoadingRemote || remoteError) && (
-        <div className="px-4 py-2 text-xs border-b border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
-          <span className="text-slate-500">
-            {isLoadingRemote ? '正在从后端刷新志愿数据...' : `后端同步失败：${remoteError}`}
-          </span>
-          <button
-            onClick={() => {
-              setRemoteError('');
-              setReloadNonce(v => v + 1);
-            }}
-            className="text-blue-600 hover:text-blue-500"
-          >
-            重新同步
-          </button>
-        </div>
-      )}
 
       {/* Tier Summary + View Toggle */}
       {state.recommendMeta && (
@@ -557,4 +450,5 @@ export default function VolunteerTable() {
       </AnimatePresence>
   </>)}</div>
   );
+}
 }

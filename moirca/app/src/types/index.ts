@@ -3,13 +3,13 @@
 // ============================================================
 
 /** 左导航标签 */
-export type LeftNavTab = 'chat' | 'graph' | 'volunteer' | 'agent' | 'recommend' | 'compare' | 'history' | 'upload' | 'settings' | 'portal' | 'contribute';
+export type LeftNavTab = 'chat' | 'resources' | 'graph' | 'agent' | 'volunteer' | 'history' | 'report' | 'compare' | 'upload';
 
 /** 右窗功能标签 */
-export type RightPanelTab = 'agentChat' | 'chart' | 'ahp' | 'upload' | 'research' | 'guided' | 'report' | 'history' | 'interview' | 'logs';
+export type RightPanelTab = 'agentChat' | 'chart' | 'ahp' | 'upload' | 'research' | 'history' | 'guided' | 'report' | 'interview' | 'logs';
 
 /** 应用阶段 */
-export type AppPhase = 'login' | 'home' | 'main';
+export type AppPhase = 'login' | 'main';
 
 /** Agent 角色 */
 export interface AgentRole {
@@ -161,122 +161,4 @@ export interface TermExplanation {
   employmentMap: { destination: string; salaryRange: string }[];
   graphNodeId?: string;
   agentOpinions: string[];
-}
-
-// ============================================================
-// 填报入口导航 (Portal Sites)
-// ============================================================
-
-/** 入口链接 */
-export interface PortalLink {
-  label: string;
-  url: string;
-  description: string;
-}
-
-/** 省级考试院 */
-export interface AuthorityInfo {
-  name: string;
-  url: string;
-}
-
-/** 省份入口集合 */
-export interface ProvincePortals {
-  application: PortalLink | null;
-  score_query: PortalLink | null;
-  admission_query: PortalLink | null;
-}
-
-/** 单个省份的填报入口数据 */
-export interface ProvinceSite {
-  code: string;
-  name: string;
-  authority: AuthorityInfo;
-  portals: ProvincePortals;
-  notes: string;
-  script_available?: boolean;
-  script_label?: string;
-}
-
-/** 区域分组 */
-export interface RegionGroup {
-  id: string;
-  name: string;
-  provinces: ProvinceSite[];
-}
-
-/** 国家平台 */
-export interface NationalPlatform {
-  id: string;
-  name: string;
-  url: string;
-  category: string;
-  description: string;
-}
-
-/** 全量填报入口数据 */
-export interface PortalSitesData {
-  version: string;
-  updated_at: string;
-  description: string;
-  regions: RegionGroup[];
-  national_platforms: NationalPlatform[];
-  tips: string[];
-}
-
-// ============================================================
-// 数据贡献 (Contribute) — P2
-// ============================================================
-
-/** 贡献数据提交 */
-export interface ContributePayload {
-  province: string;
-  volunteers: Array<{
-    school_code: string;
-    school_name?: string;
-    group_code: string;
-    major_codes: string[];
-    major_names?: string[];
-    adjustment?: boolean;
-    tier_label?: string;
-    row?: number;
-  }>;
-  user_profile?: {
-    score?: number;
-    subject_type?: string;
-    rank?: number;
-  };
-  exported_at?: string;
-  anonymous_id?: string;
-}
-
-/** 贡献提交响应 */
-export interface ContributeResponse {
-  accepted: number;
-  rejected: number;
-  verified: number;
-  contribution_ids: number[];
-  anonymous_id: string;
-  message: string;
-  cross_check_summary?: string;
-}
-
-/** 贡献统计 */
-export interface ContributeStats {
-  total: number;
-  verified: number;
-  verification_rate: number;
-  by_province: Record<string, number>;
-}
-
-/** 贡献历史条目 */
-export interface ContributeHistoryItem {
-  id: number;
-  province: string;
-  year: number;
-  school: string;
-  first_major?: string;
-  verified: boolean;
-  score?: number;
-  created_at: string;
 }

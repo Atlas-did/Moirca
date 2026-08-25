@@ -25,18 +25,15 @@ class AgentContext:
     profession: ProfessionFeatures
     user_config: UserConfig
     # 额外数据源
-    kkdaxue_posts: List[str] = None       # 框框大学相关帖子
-    official_data: Dict = None             # 官方分数线等
-    contributed_data: Dict = None          # 用户贡献数据（P2 新增）
-    knowledge_graph: any = None            # NetworkX 图引用
+    kkdaxue_posts: List[str] = None    # 框框大学相关帖子
+    official_data: Dict = None          # 官方分数线等
+    knowledge_graph: any = None         # NetworkX 图引用
 
     def __post_init__(self):
         if self.kkdaxue_posts is None:
             self.kkdaxue_posts = []
         if self.official_data is None:
             self.official_data = {}
-        if self.contributed_data is None:
-            self.contributed_data = {}
 
 
 class BaseAgent(ABC):

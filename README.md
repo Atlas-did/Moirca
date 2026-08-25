@@ -9,7 +9,7 @@ Moirca 是一个基于多 Agent 架构的高考志愿推荐工具。7 个 AI Age
 - 🧠 **多 Agent 多视角辩论** — 5 个 Agent 并行调研，第 6 个 Agent 融合计算，每条推荐都可追溯推理链路
 - 📊 **决策说明书** — 不是"推荐你报XX"，而是"官方数据✅ + 在校生反馈⚠️ + 风险提示 + 趋势预警"
 - 🎯 **张雪峰框架融入** — 就业倒推、家庭背景分流、地域套利分析，说"实在话"而非"官方话"
-- 🔧 **填报辅助工具链** — 填报入口导航站 + 油猴脚本 + Chrome 扩展，打通从推荐到实际填报的全流程
+- 🔧 **填报辅助工具链** — 浏览器插件（moirca-webbridge）只在主动触发时读取页面，把招生网/考试院内容直接丢给 Agent 解读
 - 🔄 **数据回收飞轮** — 用户匿名贡献真实填报数据 → Agent 交叉验证 → 推荐越来越准
 
 ## 架构
@@ -36,7 +36,7 @@ moirca/
 ├── backend/          # Python FastAPI 后端
 │   ├── app/
 │   │   ├── agents/   # 7 Agent 系统
-│   │   ├── api/      # REST API（推荐/决策/对比/贡献/填报入口）
+│   │   ├── api/      # REST API（推荐/决策/对比/页面上下文问答）
 │   │   ├── models/   # 数据模型
 │   │   └── services/ # 业务服务
 │   └── data/         # 数据文件（需自行准备）
@@ -45,9 +45,9 @@ moirca/
 │       ├── components/
 │       ├── pages/
 │       └── api/
-├── extension/        # Chrome 浏览器扩展
-├── scripts/          # 油猴脚本 + 模拟表单
 └── docs/             # 文档
+
+moirca-webbridge/     # 浏览器插件（最小权限、只读，接入 POST /api/context/ask）
 ```
 
 ## 快速开始
@@ -56,7 +56,7 @@ moirca/
 
 - Python 3.10+
 - Node.js 18+
-- Chrome 浏览器（用于扩展/油猴脚本）
+- Chrome / Edge 浏览器（用于 moirca-webbridge 插件）
 
 ### 2. 后端
 
@@ -87,16 +87,17 @@ npm run dev
 # 前端: http://localhost:5173
 ```
 
-### 4. Chrome 扩展
+### 4. 浏览器插件（moirca-webbridge）
+
+只读、最小权限的 MV3 插件：浏览招生网/省考试院/阳光高考时，选中文字或直接提问，
+由后端 `POST /api/context/ask` 复用现有 7 个 Agent 解读页面内容。
 
 ```
 chrome://extensions → 开发者模式 → 加载已解压的扩展程序
-→ 选择 moirca/extension/ 目录
+→ 选择 moirca-webbridge/ 目录
 ```
 
-### 5. 油猴脚本
-
-将 `moirca/scripts/moirca-auto-fill.user.js` 复制到 Tampermonkey 中。
+详细说明见 [moirca-webbridge/README.md](moirca-webbridge/README.md)。
 
 ## 数据声明
 
@@ -110,7 +111,6 @@ chrome://extensions → 开发者模式 → 加载已解压的扩展程序
 提供的示例数据仅包含：
 - ✅ `public_scorelines_seed.json` — 少量公开分数线样本
 - ✅ `kkdaxue_sample.json` — 20 条匿名校生体验样本
-- ✅ `portal_sites.json` — 31 省官方填报入口（公开 URL）
 
 **如需完整数据**：请自行爬取或联系项目维护者获取数据合作方案。
 
@@ -122,8 +122,7 @@ chrome://extensions → 开发者模式 → 加载已解压的扩展程序
 | AI/LLM | OpenAI 兼容 API（支持 DeepSeek/GPT/本地模型） |
 | 前端 | React + TypeScript + Vite + TailwindCSS + shadcn/ui |
 | 数据库 | SQLite（可迁移 PostgreSQL） |
-| 浏览器扩展 | Chrome Manifest V3 + Shadow DOM |
-| 油猴脚本 | Tampermonkey / Greasemonkey |
+| 浏览器插件 | Chrome Manifest V3（最小权限：activeTab + scripting + storage，只读） |
 
 ## 开源协议
 

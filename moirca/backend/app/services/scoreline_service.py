@@ -109,6 +109,16 @@ class ScorelineService:
             items.append(r.__dict__)
         return items[: max(1, min(limit, 100))]
 
+    @staticmethod
+    def _pick_closest(candidates: List[Dict[str, Any]], score: float) -> Dict[str, Any]:
+        """在候选里选 |score - lowest_score| 最小的一条，并列时取年份更近的。"""
+
+        def _rank_key(item: Dict[str, Any]):
+            gap = abs(float(score) - float(item["lowest_score"]))
+            return (gap, -int(item.get("year", 0)))
+
+        return dict(min(candidates, key=_rank_key))
+
     def best_match(
         self,
         score: float,
@@ -117,28 +127,30 @@ class ScorelineService:
         school: Optional[str] = None,
         major: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
-        candidates = self.search(
-            province=province,
-            subject_type=subject_type,
-            school=school,
-            major=major,
-            limit=50,
+        """渐进式匹配，避免把无关学校的分数线误挂到推荐上。
+
+        匹配级别:
+          - exact: 省份+科类+学校+专业 全命中
+          - major: 省份+科类+专业（忽略学校）
+          - school: 省份+科类+学校（忽略专业，仅作弱参考）
+        任何一级都没有数据时返回 None，绝不退化为全表任取一条。
+        """
+        levels = (
+            ("exact", {"province": province, "subject_type": subject_type, "school": school, "major": major}),
+            ("major", {"province": province, "subject_type": subject_type, "major": major}),
+            ("school", {"province": province, "subject_type": subject_type, "school": school}),
         )
-        if not candidates:
-            candidates = self.search(limit=50)
-        if not candidates:
-            return None
-
-        def _rank_key(item: Dict[str, Any]):
-            gap = abs(float(score) - float(item["lowest_score"]))
-            rank_gap = abs((item.get("lowest_rank") or 0) - 0)
-            return (gap, rank_gap, -int(item.get("year", 0)))
-
-        candidates.sort(key=_rank_key)
-        best = dict(candidates[0])
-        best["score_gap"] = round(float(score) - float(best["lowest_score"]), 2)
-        best["match_strength"] = round(max(0.0, 1.0 - abs(best["score_gap"]) / 120.0), 4)
-        return best
+        for level, filters in levels:
+            active = {k: v for k, v in filters.items() if v}
+            candidates = self.search(**active, limit=50)
+            if not candidates:
+                continue
+            best = self._pick_closest(candidates, score)
+            best["match_level"] = level
+            best["score_gap"] = round(float(score) - float(best["lowest_score"]), 2)
+            best["match_strength"] = round(max(0.0, 1.0 - abs(best["score_gap"]) / 120.0), 4)
+            return best
+        return None
 
     def score_bonus(
         self,
@@ -149,12 +161,15 @@ class ScorelineService:
         major: Optional[str] = None,
     ) -> Dict[str, Any]:
         best = self.best_match(score, province=province, subject_type=subject_type, school=school, major=major)
-        if not best:
+        # 只有精确命中（exact）或专业级命中（major）才给“已校准”加分；
+        # 校级命中（school，专业不对）只返回弱参考，不给加分、不宣称“已校准”。
+        if not best or best.get("match_level") not in ("exact", "major"):
             return {
                 "bonus": 0.0,
-                "match_strength": 0.0,
+                "match_strength": best.get("match_strength", 0.0) if best else 0.0,
                 "matched": False,
-                "best": None,
+                "match_level": best.get("match_level") if best else None,
+                "best": best,
             }
 
         closeness = best["match_strength"]
@@ -168,6 +183,7 @@ class ScorelineService:
             "bonus": round(bonus, 2),
             "match_strength": closeness,
             "matched": True,
+            "match_level": best["match_level"],
             "best": best,
         }
 

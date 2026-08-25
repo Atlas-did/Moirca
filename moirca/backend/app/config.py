@@ -33,14 +33,8 @@ class Config:
     LOCAL_LLM_BASE_URL = os.environ.get('LOCAL_LLM_BASE_URL', 'http://localhost:11434/v1')
     LOCAL_LLM_MODEL_NAME = os.environ.get('LOCAL_LLM_MODEL_NAME', 'deepseek-v4')
 
-    # 数据库: 优先环境变量，但不存在的路径自动回退
-    _env_db = os.environ.get('DATABASE_PATH', '')
-    if _env_db and os.path.exists(_env_db):
-        DATABASE_PATH = _env_db
-    elif _env_db:
-        DATABASE_PATH = _DB_DEFAULT  # .env 里的路径不存在（如 Unix 路径在 Windows）
-    else:
-        DATABASE_PATH = _DB_DEFAULT
+    # 数据库（始终使用绝对路径）
+    DATABASE_PATH = os.environ.get('DATABASE_PATH', _DB_DEFAULT)
 
     # 文件上传
     UPLOAD_FOLDER = os.path.join(project_root, 'data', 'uploads')

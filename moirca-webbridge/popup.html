@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moirca 志愿助手</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { width: 360px; min-height: 460px; font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 13px; color: #1f2937; background: #f8fafc; }
+    header { padding: 14px 16px 12px; background: linear-gradient(135deg, #2563eb, #06b6d4); color: #fff; }
+    header h1 { font-size: 15px; font-weight: 700; }
+    header p { font-size: 11px; opacity: .85; margin-top: 2px; }
+    main { padding: 12px 16px 16px; }
+    .row { margin-bottom: 10px; }
+    label { display: block; font-size: 11px; color: #64748b; margin-bottom: 4px; }
+    select, textarea, input { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; }
+    textarea { resize: vertical; min-height: 72px; font-family: inherit; }
+    .btn { padding: 10px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: filter .15s; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .btn-primary { display: block; width: 100%; background: #2563eb; color: #fff; }
+    .btn:hover { filter: brightness(1.05); }
+    .hint { font-size: 11px; color: #94a3b8; margin-top: 6px; line-height: 1.5; }
+    .answer-head { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+    .answer-head span { font-size: 11px; color: #64748b; }
+    .btn-copy { padding: 4px 10px; font-size: 11px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #2563eb; cursor: pointer; }
+    .btn-copy:hover { background: #eff6ff; }
+    .answer { margin-top: 6px; padding: 10px 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; line-height: 1.65; max-height: 260px; overflow-y: auto; }
+    .answer.empty { color: #94a3b8; }
+    .answer a { color: #2563eb; }
+    .answer code { background: #f1f5f9; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+    .answer strong { color: #0f172a; }
+    .meta { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+    .error { color: #dc2626; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+    #status { font-size: 11px; color: #64748b; margin-top: 8px; min-height: 15px; }
+    details { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+    details summary { font-size: 11px; color: #94a3b8; cursor: pointer; user-select: none; }
+    .settings-row { display: flex; gap: 6px; margin-top: 8px; }
+    .settings-row input { flex: 1; font-size: 12px; }
+    .btn-sm { padding: 8px 10px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; cursor: pointer; }
+    .btn-sm:hover { background: #f1f5f9; }
+    #pingResult { font-size: 11px; margin-top: 6px; min-height: 15px; }
+    .ok { color: #16a34a; }
+    .bad { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Moirca 志愿助手</h1>
+    <p>选中文字或直接提问，帮你解读当前页面</p>
+  </header>
+  <main>
+    <div class="row">
+      <label>解读视角（Agent）</label>
+      <select id="agent">
+        <option value="master" selected>主控</option>
+        <option value="data">数据</option>
+        <option value="risk">风险</option>
+        <option value="zhang">张雪峰</option>
+        <option value="senior">学长</option>
+        <option value="workplace">职场</option>
+        <option value="parents">爸妈</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>你的问题</label>
+      <textarea id="question" placeholder="例如：这个专业 610 分能上吗？招生计划有什么变化？"></textarea>
+    </div>
+    <div class="row">
+      <button id="ask" class="btn btn-primary">解读当前页面</button>
+    </div>
+    <div class="hint">
+      提示：先在当前网页用鼠标选中一段文字，再点按钮，会优先解读你选中的内容；没选中则解读整页正文。只会上传文本，不上传整页 DOM 或 Cookie。
+    </div>
+    <div class="answer-head">
+      <span>解读结果</span>
+      <button id="copy" class="btn-copy" disabled>复制</button>
+    </div>
+    <div id="answer" class="answer empty">解读结果会显示在这里。</div>
+    <div id="meta" class="meta"></div>
+    <div id="status"></div>
+    <div id="error" class="error"></div>
+    <details>
+      <summary>后端设置</summary>
+      <div class="settings-row">
+        <input id="apiBase" placeholder="http://localhost:8000" spellcheck="false">
+        <button id="saveApi" class="btn-sm">保存并测试</button>
+      </div>
+      <div id="pingResult"></div>
+    </details>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

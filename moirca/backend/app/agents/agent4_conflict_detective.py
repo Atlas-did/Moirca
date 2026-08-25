@@ -85,42 +85,14 @@ class Agent4ConflictDetective(BaseAgent):
         prof = ctx.profession
         posts_count = len(ctx.kkdaxue_posts or [])
         official_count = len(ctx.official_data or {})
-        contributed = ctx.contributed_data or {}
-        contributed_count = contributed.get('count', 0)
-        contributed_verified = contributed.get('verified_count', 0)
-        contributed_avg_score = contributed.get('avg_score', 0)
 
-        # P2 三源验证规则
-        sources = sum([
-            1 if posts_count > 0 else 0,
-            1 if official_count > 0 else 0,
-            1 if contributed_count > 0 else 0,
-        ])
-
-        if sources >= 3:
-            # 三源验证：权重最高
-            if contributed_verified >= 3 and contributed_avg_score >= 70:
-                score, verdict = 85, f"三源验证(官方+社区+{contributed_verified}条用户贡献)，数据高度一致"
-            elif contributed_verified >= 1:
-                score, verdict = 75, f"三源验证，{contributed_verified}条用户贡献数据佐证"
-            else:
-                score, verdict = 70, "三源数据可交叉验证"
-        elif sources == 2:
-            if contributed_count > 0 and contributed_avg_score >= 70:
-                score, verdict = 72, f"双源验证(含{contributed_verified}条用户贡献)，数据较一致"
-            elif posts_count > 0 and official_count > 0:
-                score, verdict = 65, "双源数据可交叉验证"
-            elif contributed_count > 0:
-                score, verdict = 55, "仅有贡献数据和单一源，待更多验证"
-            else:
-                score, verdict = 50, "双源数据，缺第三方验证"
-        elif sources == 1:
-            if contributed_count > 0:
-                score, verdict = 48, "仅用户贡献数据，缺官方和社区验证"
-            elif posts_count > 0:
-                score, verdict = 50, "仅有社区数据，缺官方对比"
-            else:
-                score, verdict = 50, "仅有官方数据，缺社区验证"
+        # 规则: 数据越齐全，一致性评分越高
+        if posts_count > 0 and official_count > 0:
+            score, verdict = 65, "双源数据可交叉验证"
+        elif posts_count > 0:
+            score, verdict = 50, "仅有社区数据，缺官方对比"
+        elif official_count > 0:
+            score, verdict = 50, "仅有官方数据，缺社区验证"
         else:
             score, verdict = 40, "数据不足，无法交叉验证"
 
@@ -128,8 +100,8 @@ class Agent4ConflictDetective(BaseAgent):
             agent_name=self.agent_name,
             profession_code=prof.code,
             raw_score=score,
-            confidence=0.55 if score >= 65 else 0.40,
+            confidence=0.40 if score < 50 else 0.55,
             freshness_date=datetime.now(),
-            source_count=posts_count + official_count + contributed_count,
-            notes=f"[规则降级·{sources}源] {verdict}",
+            source_count=posts_count + official_count,
+            notes=f"[规则降级] {verdict}",
         )

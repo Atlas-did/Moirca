@@ -16,7 +16,7 @@ import {
 } from '@/api/recommend';
 import type { VolunteerRow } from '@/types';
 
-const PROVINCES = ['广东','北京','上海','浙江','江苏','湖北','湖南','四川','山东','河南','河北','安徽','福建','江西','辽宁','陕西','重庆','天津','云南','广西','山西','贵州','吉林','黑龙江','甘肃','内蒙古','新疆','海南','宁夏','青海','西藏'];
+const PROVINCES = ['广东','北京','上海','浙江','江苏','湖北','湖南','四川','山东','河南'];
 function recommendToVolunteerRow(r: RecommendItem, idx: number): VolunteerRow {
   return {
     id: `rec_${r.major_code}_${idx}`,
@@ -53,9 +53,9 @@ function applyRecommendResponse(dispatch: ReturnType<typeof useApp>['dispatch'],
 }
 
 export default function ScoreInputBar() {
-  const { state, dispatch } = useApp();
-  const [score, setScore] = useState((state as any).homeInput?.score || '585');
-  const [province, setProvince] = useState((state as any).homeInput?.province || '广东');
+  const { dispatch } = useApp();
+  const [score, setScore] = useState('585');
+  const [province, setProvince] = useState('广东');
   const [keywords, setKeywords] = useState('');
   const [loading, setLoading] = useState(false);
   const [asyncLoading, setAsyncLoading] = useState(false);
@@ -72,20 +72,6 @@ export default function ScoreInputBar() {
       }
     };
   }, []);
-
-  const triggeredRef = useRef(false);
-  useEffect(() => {
-    const hi = (state as any).homeInput;
-    if (!hi || triggeredRef.current) return;
-    triggeredRef.current = true;
-    const scoreNum = parseInt(hi.score);
-    if (!scoreNum || scoreNum < 100) return;
-    setLoading(true);
-    getRecommendations({ score: scoreNum, province: hi.province, keywords: [], top_n: 15 })
-      .then(data => applyRecommendResponse(dispatch, data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [(state as any).homeInput, dispatch]);
 
   const handleGenerate = async () => {
     const scoreNum = parseInt(score);

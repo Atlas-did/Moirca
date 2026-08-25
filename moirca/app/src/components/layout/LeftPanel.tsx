@@ -1,61 +1,41 @@
 import { useApp } from '@/contexts/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Home, Wand2 } from 'lucide-react';
 import KnowledgeGraph from '@/components/graph/KnowledgeGraph';
-import AHPMatrix from '@/components/ahp/AHPMatrix';
-import HistoryPanel from '@/components/history/HistoryPanel';
-import SettingsPanel from '@/pages/SettingsPanel';
-import FullChat from '@/components/agent/FullChat';
+import ResourcesPanel from '@/components/resources/Resources';
 import VolunteerTable from '@/components/volunteer/VolunteerTable';
 import AgentPlaza from '@/components/agent/AgentPlaza';
+import FullChat from '@/components/agent/FullChat';
+import HistoryPanel from '@/components/history/HistoryPanel';
+import ReportPanel from '@/components/report/ReportPanel';
+import AHPMatrix from '@/components/ahp/AHPMatrix';
 import FileUploadPanel from '@/components/agent/FileUploadPanel';
-import PortalSitesPage from '@/components/portal/PortalSitesPage';
-import ContributePanel from '@/components/contribute/ContributePanel';
-
-const labelMap: Record<string, string> = {
-  chat: '多 Agent 对话',
-  graph: '知识图谱',
-  volunteer: '志愿填报表',
-  agent: 'Agent 广场',
-  recommend: '志愿推荐',
-  compare: '对比分析',
-  history: '历史记录',
-  upload: '文件上传',
-  portal: '填报入口',
-  contribute: '数据贡献',
-  settings: '设置',
-};
+import { VersionUpdateButton } from '@/components/shared/VersionUpdate';
 
 export default function LeftPanel() {
-  const { state, dispatch } = useApp();
+  const { state } = useApp();
+
+  const labelMap: Record<string, string> = {
+    chat: '多 Agent 对话',
+    resources: '数据资源管理',
+    graph: '知识图谱',
+    agent: 'Agent 广场',
+    volunteer: '志愿填报表',
+    history: '历史项目列表',
+    report: '报告 Markdown 渲染',
+    compare: 'AHP 对比',
+    upload: '文件上传与分析',
+  };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-amber-50/30 overflow-hidden">
+    <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 overflow-hidden">
       {/* Top Bar */}
-      <div className="h-12 bg-white/80 backdrop-blur-sm border-b border-amber-100 flex items-center justify-between px-5 shrink-0">
+      <div className="h-10 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => dispatch({ type: 'GO_HOME' })}
-            className="flex items-center gap-1.5 text-xs font-medium text-stone-400 hover:text-indigo-600 hover:bg-indigo-50 px-2.5 py-1.5 rounded-lg transition-all"
-            title="返回首页"
-          >
-            <Home className="w-3.5 h-3.5" />
-            首页
-          </button>
-          <span className="text-stone-300">/</span>
-          <span className="text-sm font-semibold text-stone-700">
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
             {labelMap[state.leftNav] || state.leftNav}
           </span>
         </div>
-        {state.leftNav === 'recommend' && (
-          <button
-            onClick={() => dispatch({ type: 'START_CUSTOMIZE' })}
-            className="flex items-center gap-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-xl active:scale-95"
-          >
-            <Wand2 className="w-4 h-4" />
-            开始定制志愿
-          </button>
-        )}
+        <VersionUpdateButton />
       </div>
 
       {/* Content */}
@@ -63,23 +43,19 @@ export default function LeftPanel() {
         <AnimatePresence mode="wait">
           <motion.div
             key={state.leftNav}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="absolute inset-0 overflow-auto"
+            className="absolute inset-0"
           >
             {state.leftNav === 'chat' && <FullChat />}
+            {state.leftNav === 'resources' && <ResourcesPanel />}
             {state.leftNav === 'graph' && <KnowledgeGraph />}
-            {state.leftNav === 'volunteer' && <VolunteerTable />}
             {state.leftNav === 'agent' && <AgentPlaza />}
-            {state.leftNav === 'recommend' && <KnowledgeGraph />}
-            {state.leftNav === 'compare' && <AHPMatrix />}
+            {state.leftNav === 'volunteer' && <VolunteerTable />}
             {state.leftNav === 'history' && <HistoryPanel />}
+            {state.leftNav === 'report' && <ReportPanel />}
+            {state.leftNav === 'compare' && <AHPMatrix />}
             {state.leftNav === 'upload' && <FileUploadPanel />}
-            {state.leftNav === 'portal' && <PortalSitesPage />}
-            {state.leftNav === 'contribute' && <ContributePanel />}
-            {state.leftNav === 'settings' && <SettingsPanel />}
           </motion.div>
         </AnimatePresence>
       </div>

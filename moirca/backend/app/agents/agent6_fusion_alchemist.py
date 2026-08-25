@@ -354,45 +354,6 @@ class FusionAlchemist:
         return None, ""
 
     # -------------------------------------------------------
-    # 5.5 用户贡献数据可信度因子 U(p) — P2新增
-    # -------------------------------------------------------
-
-    def contribution_trust_factor(
-        self,
-        prof_code: str,
-        contributed_stats: Optional[Dict[str, dict]] = None,
-    ) -> float:
-        """
-        计算用户贡献数据对推荐可信度的修正
-
-        U(p) 取值:
-          - ≥3 条验证通过的一致贡献 → ×1.10  (强共识)
-          - 1-2 条通过验证 → ×1.05          (有佐证)
-          - 无贡献数据 → ×1.00              (无影响)
-          - 有矛盾贡献(平均分<60) → ×0.95   (需更多验证)
-
-        贡献数据来自油猴脚本导出的真实用户填报记录，
-        经过 Agent 4 交叉验证后入库。
-        """
-        if not contributed_stats:
-            return 1.0
-
-        stats = contributed_stats.get(prof_code)
-        if not stats:
-            return 1.0
-
-        count = stats.get('verified_count', 0)
-        avg_score = stats.get('avg_score', 0)
-
-        if count >= 3 and avg_score >= 70:
-            return 1.10
-        elif count >= 1 and avg_score >= 60:
-            return 1.05
-        elif count >= 1 and avg_score < 60:
-            return 0.95  # 有矛盾，需更多数据
-        return 1.0
-
-    # -------------------------------------------------------
     # 6. 主融合函数
     # -------------------------------------------------------
 
@@ -400,7 +361,6 @@ class FusionAlchemist:
         self,
         all_agent_outputs: Dict[str, List[AgentOutput]],
         profession_features: Dict[str, ProfessionFeatures],
-        contributed_stats: Optional[Dict[str, dict]] = None,
     ) -> List[FusionResult]:
         """
         主融合计算
@@ -408,7 +368,6 @@ class FusionAlchemist:
         Args:
             all_agent_outputs: {专业代码: [Agent1输出, Agent2输出, ...]}
             profession_features: {专业代码: ProfessionFeatures}
-            contributed_stats: {专业代码: {count, verified_count, avg_score}}  P2新增
 
         Returns:
             按 match_score 降序排列的融合结果列表
@@ -452,18 +411,19 @@ class FusionAlchemist:
             calibration = self.confidence_calibration(agent_outputs, conflict_sev)
             zx_adj = self.zhangxuefeng_adjustment(features)
 
-            # --- Step 5.5: 用户贡献数据可信度因子 U(p) (P2新增) ---
-            user_trust = self.contribution_trust_factor(prof_code, contributed_stats)
-
             # --- Step 6: 最终分数 ---
-            final_score = base_score * narrative * calibration * zx_adj * user_trust
+            final_score = base_score * narrative * calibration * zx_adj
             final_score = max(0.0, min(100.0, final_score))
 
             # --- Step 7: 推荐等级 ---
             tier = self._tier_classification(final_score)
 
-            # 检查排除规则
-            if features.category in self.config.exclude_categories:
+            # 检查排除规则（门类/一级学科/专业名三者任一命中即排除）
+            excluded = any(
+                token and (token in features.category or token in features.discipline or token in features.name)
+                for token in (self.config.exclude_categories or [])
+            )
+            if excluded:
                 final_score *= 0.5
                 tier = TierLabel.C
 
@@ -509,18 +469,25 @@ class FusionAlchemist:
             else:
                 strategy["冲"].append(r)
 
-        # 按推荐比例裁剪
+        # 按推荐比例裁剪（融合结果已按分数降序）
         ratio = {"A": (0.40, 0.40, 0.20), "B": (0.30, 0.40, 0.30),
                  "C": (0.20, 0.40, 0.40), "D": (0.10, 0.30, 0.60)}
         tier = self.config.score_tier
         rush_pct, steady_pct, safe_pct = ratio.get(tier, ratio["C"])
 
         total = len(results)
-        rush_n = max(1, int(total * rush_pct))
-        steady_n = max(1, int(total * steady_pct))
+        if total == 0:
+            return strategy
 
-        # 融合结果已排序，取前N个分配
-        all_ranked = results[:rush_n + steady_n + max(1, int(total * safe_pct))]
+        rush_n = max(0, round(total * rush_pct))
+        steady_n = max(0, round(total * steady_pct))
+        safe_n = max(0, round(total * safe_pct))
+        # 修正四舍五入造成的数量差
+        steady_n += total - (rush_n + steady_n + safe_n)
+
+        strategy["冲"] = strategy["冲"][:rush_n]
+        strategy["稳"] = strategy["稳"][:steady_n]
+        strategy["保"] = strategy["保"][:safe_n]
         return strategy
 
     # -------------------------------------------------------

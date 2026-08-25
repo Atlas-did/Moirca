@@ -1,6 +1,6 @@
 # Moirca 项目状态与执行计划
 
-> 最后更新: 2026-05-29 | DeepSeek V4 已接入 | 前后端已联通 | kkdaxue 全量导入 | 异步推荐已上线
+> 最后更新: 2026-05-29 (项目暂停，文档归档) | DeepSeek V4 | 前后端联通 | kkdaxue 10076 条 | 异步推荐 | SSE 流式 | 深色模式 | 卡片视图 | 分步报告 | 9 标签左侧栏
 
 ---
 
@@ -115,9 +115,13 @@
 - 进度条显示真实步骤（拉取图谱→刷新推荐）
 - 前端已完成：`VersionUpdate.tsx`
 
-#### P0-2：推荐分数偏低问题
+#### ✅ P0-2：推荐数据源
 
-当前：Agent 评分缺少真实数据锚点，融合后分数集中在 20-50。
+kkdaxue 10076 条自动导入（`init_db()` 从 `kkdaxue_all.json` 加载），Agent 2 有真实社区数据。推荐分数差异化已明显改善。
+
+#### P0-2b：公开分数线数据（待别人做）
+
+当前仍缺：1 省份近 3 年分数线/位次硬数据。Agent 1（官方猎手）仍靠 LLM 常识评分。
 
 根因：没有分数线/位次/招生计划等"硬数据"。
 
@@ -136,18 +140,29 @@
 
 ### P1（下周，让推荐"靠谱"）
 
-#### ✅ P1-1：kkdaxue 全量导入
+#### ✅ P1-2：前端异步接入
 
-已完成：10076 条全量导入，2000 条已加载（506 专业, 2054 学校）。
-Agent 2（口碑矿工）现在有真实社区数据。
+`ScoreInputBar` 已支持双按钮（同步/异步），异步模式 1.2s 轮询进度。
 
-#### P1-2：推荐 API 异步化前端接入（P0-3 遗留）
+#### ✅ P1-5：SSE 流式对话
 
-当前：后端异步接口已就绪，前端 `ScoreInputBar` 仍用同步调用。
+`POST /api/chat/stream` + `sendMessageStream()`，Agent 对话逐字显示。
 
-目标：`ScoreInputBar` 改用 `POST /async` + 轮询 `/status/{id}`，消除 40s 白等等待。
+#### ✅ P1-6：深色模式
 
-预计：1h
+CSS 变量（`--bg/--text/--card-bg/--border-color`），ThemeToggle 组件，localStorage 持久化。
+
+#### ✅ 推荐卡片视图
+
+`CardView.tsx`，表格/卡片一键切换，冲(红)稳(蓝)保(绿)色标。
+
+#### ✅ 交互式分步报告
+
+`GuidedReport.tsx`，4 步引导（画像→推荐→风险→复核），进度点导航。
+
+#### ✅ 左侧栏扩展
+
+从 5 个标签扩展到 9 个（对话/志愿表/对比/图谱/Agent/上传/历史/报告/资源），右边栏功能可在左边全屏使用。
 
 #### P1-2：证据标准化
 
@@ -176,6 +191,21 @@ Agent 2（口碑矿工）现在有真实社区数据。
 预计：4h
 
 ### P2（第 3-6 周，走向上线）
+
+## 留待别人继续的（移交清单）
+
+| # | 任务 | 说明 | 预计工时 |
+|---|------|------|---------|
+| 1 | 公开数据收集 | 1 省份（广东）近 3 年计算机类分数线/位次 → SQLite → Agent 1 读取 | 6h |
+| 2 | Agent 7 ReACT 报告 | 参考 MiroFish `report_agent.py`，缺证据→去查→补证据的闭环 | 12h |
+| 3 | 异步任务队列 | Celery/RQ 统一管理 simulation/report/graph 后台任务 | 8h |
+| 4 | 数据库写入业务数据 | `agent_outputs`/`fusion_results`/`reports` 表接入主流程 | 4h |
+| 5 | 单元测试 | `/api/recommend`、`/api/compare`、Agent 6 融合公式的契约测试 | 4h |
+| 6 | SQLAlchemy ORM | 替代裸 sqlite3，方便迁移 PostgreSQL | 4h |
+| 7 | CORS 收敛 + 部署 | `allow_origins` 白名单，Docker Compose 一键部署 | 4h |
+| 8 | `/api/compare/` 去硬编码 | 院校层次/就业确定性数据来自数据库 | 2h |
+| 9 | DeepResearch/ChartPanel 接真实数据 | 两个面板仍用硬编码数据 | 4h |
+| 10 | WebSocket 实时通信 | 替代轮询，真正的实时 Agent 进度推送 | 6h |
 
 #### P2-1：Agent 7 报告 ReACT 循环
 

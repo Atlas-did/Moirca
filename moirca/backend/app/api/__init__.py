@@ -22,10 +22,7 @@ from .logs import router as logs_router
 from .scorelines import router as scorelines_router
 from .graph_data import router as graph_data_router
 from .zep import router as zep_router
-from .knowledge import router as knowledge_router
-from .adi import router as adi_router
-from .sites import router as sites_router
-from .contribute import router as contribute_router
+from .context import router as context_router
 
 router = APIRouter()
 
@@ -38,8 +35,6 @@ router.include_router(graph_data_router, prefix="/graph-viz", tags=["图谱可�
 router.include_router(interview_router, prefix="/interview", tags=["采访"])
 router.include_router(ontology_router, prefix="/ontology", tags=["本体论"])
 router.include_router(recommendation_router, prefix="/recommend", tags=["推荐"])
-router.include_router(adi_router, prefix="/adi", tags=["专业路径评估"])
-router.include_router(knowledge_router, prefix="/knowledge", tags=["知识库"])
 router.include_router(chat_router, prefix="/chat", tags=["对话"])
 router.include_router(compare_router, prefix="/compare", tags=["对比"])
 router.include_router(simulation_router, prefix="/simulation", tags=["模拟"])
@@ -48,7 +43,6 @@ router.include_router(history_router, prefix="/history", tags=["历史"])
 router.include_router(logs_router, prefix="/logs", tags=["日志"])
 router.include_router(scorelines_router, prefix="/scorelines", tags=["公开分数线"])
 router.include_router(zep_router, prefix="/zep", tags=["Zep（可选）"])
-router.include_router(sites_router, prefix="/sites", tags=["填报入口"])
-router.include_router(contribute_router, prefix="/contribute", tags=["数据贡献"])
+router.include_router(context_router, prefix="/context", tags=["页面上下文问答"])
 
 

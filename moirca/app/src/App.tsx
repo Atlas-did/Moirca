@@ -1,7 +1,7 @@
 import { AppProvider, useApp } from '@/contexts/AppContext';
 import Login from '@/components/onboarding/Login';
-import HomePage from '@/pages/HomePage';
 import Layout from '@/components/layout/Layout';
+import TextSelectionTooltip from '@/components/shared/TextSelectionTooltip';
 
 function AppContent() {
   const { state } = useApp();
@@ -10,11 +10,12 @@ function AppContent() {
     return <Login />;
   }
 
-  if (state.phase === 'home') {
-    return <HomePage />;
-  }
-
-  return <Layout />;
+  return (
+    <>
+      <Layout />
+      <TextSelectionTooltip />
+    </>
+  );
 }
 
 export default function App() {

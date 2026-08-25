@@ -80,38 +80,6 @@ const INITIAL_VOLUNTEER_DATA: VolunteerRow[] = [
 // State 定义
 // ============================================================
 
-export interface DraftPlanEntry {
-  type: 'direction' | 'school' | 'major' | 'warning' | 'decision';
-  source: string;
-  content: string;
-}
-
-export interface DraftPlanSummary {
-  direction: string;
-  schools: string[];
-  majors: string[];
-  warnings: string[];
-  decision_path: string[];
-  generated: boolean;
-}
-
-export interface SchoolRecoItem {
-  school: string;
-  avg_score: number;
-  min_score: number;
-  max_score: number;
-  majors: { name: string; min_score: number; min_rank: number | null }[];
-  match_count: number;
-}
-
-export interface DraftPlan {
-  profile: { score: string; province: string; subject: string; rank: string };
-  answers: { question: string; answer: string }[];
-  entries: DraftPlanEntry[];
-  summary: DraftPlanSummary | null;
-  schoolRecos: { reach: SchoolRecoItem[]; steady: SchoolRecoItem[]; safety: SchoolRecoItem[] } | null;
-}
-
 export interface AppState {
   phase: AppPhase;
   username: string;
@@ -143,19 +111,13 @@ export interface AppState {
     tierSummary: Record<string, { count: number; schools: string[] }>;
     warnings: string[];
   } | null;
-  customPhase: 'idle' | 'asking' | 'thinking' | 'debating' | 'filtering' | 'confirm';
-  matchedSchoolIds: string[];
-  homeInput: { score: string; province: string; subject: string; rank?: string } | null;
-  userProfile: Record<string, unknown> | null;
-  draftPlan: DraftPlan;
 }
 
-
 const initialState: AppState = {
-  phase: 'home',
+  phase: 'login',
   username: '',
   isGuest: false,
-  leftNav: 'recommend',
+  leftNav: 'graph',
   rightPanel: 'agentChat',
   rightPanelCollapsed: false,
   rightPanelWidth: 400,
@@ -191,17 +153,6 @@ const initialState: AppState = {
   isUpdating: false,
   isChatFullScreen: false,
   recommendMeta: null,
-  customPhase: 'idle',
-  matchedSchoolIds: [],
-  homeInput: null,
-  userProfile: null,
-  draftPlan: {
-    profile: { score: '', province: '', subject: '', rank: '' },
-    answers: [],
-    entries: [],
-    summary: null,
-    schoolRecos: null,
-  },
 };
 
 // ============================================================
@@ -211,7 +162,6 @@ const initialState: AppState = {
 export type AppAction =
   | { type: 'LOGIN'; payload: { username: string; isGuest: boolean } }
   | { type: 'LOGOUT' }
-  | { type: 'GO_HOME' }
   | { type: 'SET_LEFT_NAV'; payload: LeftNavTab }
   | { type: 'SET_RIGHT_PANEL'; payload: RightPanelTab }
   | { type: 'TOGGLE_RIGHT_COLLAPSE' }
@@ -236,13 +186,7 @@ export type AppAction =
   | { type: 'TOGGLE_RIGHT_COLLAPSED'; payload: boolean }
   | { type: 'LOAD_VOLUNTEER_DATA'; payload: VolunteerRow[] }
   | { type: 'SET_RECOMMEND_META'; payload: { profile: Record<string, unknown>; tierSummary: Record<string, { count: number; schools: string[] }>; warnings: string[] } }
-  | { type: 'LOAD_GRAPH_DATA'; payload: { nodes: GraphNode[]; edges: GraphEdge[] } }
-  | { type: 'START_CUSTOMIZE' }
-  | { type: 'SET_CUSTOM_PHASE'; payload: AppState['customPhase'] }
-  | { type: 'SET_MATCHED_SCHOOLS'; payload: string[] }
-  | { type: 'START_ANALYSIS'; payload: { score: string; province: string; subject: string; rank?: string } }
-  | { type: 'SET_USER_PROFILE'; payload: Record<string, unknown> }
-  | { type: 'UPDATE_DRAFT_PLAN'; payload: Partial<DraftPlan> & { appendEntry?: DraftPlanEntry } };
+  | { type: 'LOAD_GRAPH_DATA'; payload: { nodes: GraphNode[]; edges: GraphEdge[] } };
 
 // ============================================================
 // Reducer
@@ -254,8 +198,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, phase: 'main', username: action.payload.username, isGuest: action.payload.isGuest };
     case 'LOGOUT':
       return { ...initialState };
-    case 'GO_HOME':
-      return { ...state, phase: 'home' };
     case 'SET_LEFT_NAV':
       return { ...state, leftNav: action.payload };
     case 'SET_RIGHT_PANEL':
@@ -321,24 +263,6 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, recommendMeta: action.payload as AppState['recommendMeta'] };
     case 'LOAD_GRAPH_DATA':
       return { ...state, graphNodes: action.payload.nodes, graphEdges: action.payload.edges };
-    case 'START_CUSTOMIZE':
-      return { ...state, customPhase: 'asking', rightPanel: 'agentChat', rightPanelCollapsed: false };
-    case 'SET_CUSTOM_PHASE':
-      return { ...state, customPhase: action.payload };
-    case 'SET_MATCHED_SCHOOLS':
-      return { ...state, matchedSchoolIds: action.payload };
-    case 'START_ANALYSIS':
-      return { ...state, phase: 'main', username: '用户', isGuest: true, homeInput: action.payload, customPhase: 'asking', rightPanel: 'agentChat', rightPanelCollapsed: false };
-    case 'SET_USER_PROFILE':
-      return { ...state, userProfile: action.payload };
-    case 'UPDATE_DRAFT_PLAN': {
-      const { appendEntry, ...rest } = action.payload;
-      const next = { ...state.draftPlan, ...rest };
-      if (appendEntry) {
-        next.entries = [...state.draftPlan.entries, appendEntry];
-      }
-      return { ...state, draftPlan: next };
-    }
     default:
       return state;
   }

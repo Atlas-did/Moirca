@@ -1,236 +1,399 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import * as d3 from 'd3';
-import SchoolInfoCard from './SchoolInfoCard';
-import { Search, X } from 'lucide-react';
+import type { GraphNode, GraphEdge } from '@/types';
 import { getGraphData } from '@/api/graph';
 
-const TIER_COLORS: Record<string, string> = {
-  '985': '#D97706', '211': '#2563EB', '双一流': '#7C3AED',
-};
-
-function strip(s: string) {
-  return s.replace(/^(school|city|major|tier|career|profession)[:_]/, '');
-}
+// ============================================================
+// 物理引擎常量
+// ============================================================
+const REPULSION_FORCE = 800;
+const SPRING_LENGTH = 120;
+const SPRING_STRENGTH = 0.03;
+const CENTER_ATTRACT = 0.008;
+const DAMPING = 0.88;
+const MAX_SPEED = 6;
 
 export default function KnowledgeGraph() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const nodesRef = useRef<GraphNode[]>([]);
+  const edgesRef = useRef<GraphEdge[]>([]);
+  const animRef = useRef<number>(0);
+  const dragRef = useRef<{ nodeId: string | null; offsetX: number; offsetY: number }>({
+    nodeId: null, offsetX: 0, offsetY: 0,
+  });
+  const hoveredRef = useRef<string | null>(null);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; node: GraphNode } | null>(null);
   const { state, dispatch } = useApp();
-  const customPhase = (state as any).customPhase || 'idle';
-  const matchedIds = (state as any).matchedSchoolIds || [];
-  const [selectedSchool, setSelectedSchool] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResult, setSearchResult] = useState<string | null>(null);
-  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, any> | null>(null);
-  const simNodesRef = useRef<any[]>([]);
-  const svgNodeRef = useRef<SVGSVGElement | null>(null);
 
   const activeUpload = state.activeDocumentId
     ? state.uploadResults.find(item => item.documentId === state.activeDocumentId)
     : state.uploadResults[state.uploadResults.length - 1];
 
-  const searchAndZoom = useCallback((query: string) => {
-    if (!query.trim() || !zoomRef.current || !svgNodeRef.current) return;
-    const svg = d3.select(svgNodeRef.current);
-    const nodes = simNodesRef.current;
-    const lower = query.trim().toLowerCase();
-    const found = nodes.find((n: any) =>
-      n.type === 'school' && n.label.toLowerCase().includes(lower)
-    );
-    if (!found) { setSearchResult(null); return; }
-    setSearchResult(found.label);
-    const w = containerRef.current?.clientWidth || 800;
-    const h = containerRef.current?.clientHeight || 600;
-    const transform = d3.zoomIdentity
-      .translate(w / 2, h / 2)
-      .scale(1.8)
-      .translate(-(found.x || 0), -(found.y || 0));
-    svg.transition().duration(600).call(zoomRef.current.transform, transform);
-  }, []);
-
+  // Load graph data from backend on mount
   useEffect(() => {
-    const documentId = state.activeDocumentId || activeUpload?.documentId || undefined;
-    const graphId = activeUpload?.graphId;
+    getGraphData({
+      graphId: activeUpload?.graphId,
+      documentId: activeUpload?.documentId,
+    })
+      .then(data => dispatch({ type: 'LOAD_GRAPH_DATA', payload: data }))
+      .catch(() => {}); // 静默降级，使用初始硬编码数据
+  }, [dispatch, activeUpload?.documentId, activeUpload?.graphId]);
 
-    getGraphData({ documentId, graphId })
-      .then(data => dispatch({ type: 'LOAD_GRAPH_DATA', payload: { nodes: data.nodes, edges: data.edges } }))
-      .catch(() => {});
-  }, [dispatch, state.activeDocumentId, activeUpload?.documentId, activeUpload?.graphId]);
-
+  // Sync with global state
   useEffect(() => {
-    if (!state.graphNodes?.length || !svgRef.current || !containerRef.current) return;
-    try {
-      const svgEl = svgRef.current;
-      svgNodeRef.current = svgEl;
-      const svg = d3.select(svgEl);
-      svg.selectAll('*').remove();
-      const w = containerRef.current.clientWidth, h = containerRef.current.clientHeight;
-      if (!w || !h) return;
-
-      const nodeMap = new Map();
-      const nodes: any[] = state.graphNodes.map(n => {
-        const obj = { id: n.id, label: strip(n.label), type: n.type as string,
-          province: (n as any).province || '', tier: (n as any).tier || '' };
-        nodeMap.set(n.id, obj); return obj;
-      });
-      simNodesRef.current = nodes;
-      const edges: any[] = state.graphEdges.filter(e => nodeMap.has(e.source) && nodeMap.has(e.target));
-
-      const sim = d3.forceSimulation(nodes)
-        .force('link', d3.forceLink(edges).id((d: any) => d.id).distance(40).strength(0.1))
-        .force('charge', d3.forceManyBody().strength(-60))
-        .force('center', d3.forceCenter(w/2, h/2))
-        .force('collide', d3.forceCollide(18))
-        .alphaDecay(0.02).velocityDecay(0.4);
-
-      const g = svg.append('g');
-      const zoom = d3.zoom<any, any>().scaleExtent([0.2, 5]).on('zoom', (e) => g.attr('transform', e.transform));
-      zoomRef.current = zoom;
-      svg.call(zoom);
-
-      const link = g.append('g').selectAll('line').data(edges).enter().append('line')
-        .attr('stroke', '#A0A0A0').attr('stroke-width', 2).attr('opacity', 0.5);
-
-      const schools = nodes.filter((n: any) => n.type === 'school');
-      const provinces = nodes.filter((n: any) => n.type === 'province');
-
-      // Province labels (behind)
-      const pg = g.append('g');
-      pg.selectAll('text').data(provinces).enter().append('text')
-        .text((d: any) => d.label)
-        .attr('x', (d: any) => d.x).attr('y', (d: any) => d.y)
-        .attr('text-anchor', 'middle').attr('dy', '-0.8em')
-        .attr('font-size', '10px').attr('font-weight', '700').attr('fill', '#bbb');
-
-      // Schools - bigger circles
-      const sg = g.append('g');
-      const circles = sg.selectAll('circle').data(schools).enter().append('circle')
-        .attr('r', (d: any) => TIER_COLORS[d.tier] ? 12 : 8)
-        .attr('fill', (d: any) => TIER_COLORS[d.tier] || '#78716C')
-        .attr('opacity', (d: any) => {
-          if (customPhase === 'idle' || customPhase === 'asking') return 1;
-          if (customPhase === 'thinking') return 0.6;
-          if (!matchedIds.length) return 1;
-          return matchedIds.includes(d.id) ? 1 : 0.08;
-        })
-        .attr('stroke', '#fff').attr('stroke-width', 2.5).style('cursor', 'pointer')
-        .call(d3.drag<any, any>()
-          .on('start', (e, d: any) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = d.x; d.fy = d.y; })
-          .on('drag', (e, d: any) => { d.fx = e.x; d.fy = e.y; })
-          .on('end', (e, d: any) => { if (!e.active) sim.alphaTarget(0); d.fx = null; d.fy = null; }))
-        .on('mouseenter', function() { d3.select(this).attr('stroke', '#333').attr('stroke-width', 4); })
-        .on('mouseleave', function() { d3.select(this).attr('stroke', '#fff').attr('stroke-width', 2.5); })
-        .on('click', function(e: any, d: any) {
-          e.stopPropagation();
-          circles.attr('stroke', '#fff').attr('stroke-width', 2.5);
-          link.attr('stroke', '#A0A0A0').attr('stroke-width', 2);
-          d3.select(this).attr('stroke', '#E91E63').attr('stroke-width', 4);
-          link.filter((l: any) => (l.source?.id||l.source)===d.id || (l.target?.id||l.target)===d.id)
-            .attr('stroke', '#E91E63').attr('stroke-width', 3);
-          setSelectedSchool(d.label);
-        });
-
-      // Labels for all schools
-      const labels = sg.selectAll('text').data(schools).enter().append('text')
-        .text((d: any) => d.label.length > 8 ? d.label.slice(0,8) : d.label)
-        .attr('font-size', (d: any) => TIER_COLORS[d.tier] ? '11px' : '9px')
-        .attr('fill', (d: any) => TIER_COLORS[d.tier] ? '#222' : '#666')
-        .attr('font-weight', (d: any) => TIER_COLORS[d.tier] ? '700' : '400')
-        .attr('opacity', (d: any) => {
-          if (customPhase === 'idle' || customPhase === 'asking') return 1;
-          if (customPhase === 'thinking') return 0.5;
-          if (!matchedIds.length) return 1;
-          return matchedIds.includes(d.id) ? 1 : 0.05;
-        })
-        .attr('dx', (d: any) => TIER_COLORS[d.tier] ? 16 : 12)
-        .attr('dy', 4).style('pointer-events', 'none').style('font-family', 'sans-serif');
-
-      sim.on('tick', () => {
-        link.attr('x1', (d: any) => d.source?.x||0).attr('y1', (d: any) => d.source?.y||0)
-            .attr('x2', (d: any) => d.target?.x||0).attr('y2', (d: any) => d.target?.y||0);
-        circles.attr('cx', (d: any) => d.x||0).attr('cy', (d: any) => d.y||0);
-        sg.selectAll('text').attr('x', (d: any) => d.x||0).attr('y', (d: any) => d.y||0);
-        pg.selectAll('text').attr('x', (d: any) => d.x||0).attr('y', (d: any) => d.y||0);
-      });
-
-      svg.on('click', () => {
-        circles.attr('stroke', '#fff').attr('stroke-width', 2.5);
-        link.attr('stroke', '#A0A0A0').attr('stroke-width', 2);
-      });
-
-    } catch (err) {
-      console.error(err);
-    }
+    nodesRef.current = state.graphNodes.map(n => ({ ...n }));
+    edgesRef.current = state.graphEdges.map(e => ({ ...e }));
   }, [state.graphNodes, state.graphEdges]);
 
+  // Canvas resize
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    if (!parent) return;
+
+    const resize = () => {
+      const rect = parent.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      const ctx = canvas.getContext('2d');
+      if (ctx) ctx.scale(dpr, dpr);
+    };
+
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(parent);
+    return () => ro.disconnect();
+  }, []);
+
+  // Physics + Render loop
+  const simulate = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const width = canvas.width / (window.devicePixelRatio || 1);
+    const height = canvas.height / (window.devicePixelRatio || 1);
+    const nodes = nodesRef.current;
+    const edges = edgesRef.current;
+
+    // Physics
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (dragRef.current.nodeId === n.id) continue;
+
+      let fx = 0, fy = 0;
+
+      // Repulsion
+      for (let j = 0; j < nodes.length; j++) {
+        if (i === j) continue;
+        const o = nodes[j];
+        const dx = n.x - o.x;
+        const dy = n.y - o.y;
+        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+        if (dist < 300) {
+          const f = REPULSION_FORCE / (dist * dist);
+          fx += (dx / dist) * f;
+          fy += (dy / dist) * f;
+        }
+      }
+
+      // Spring force from edges
+      for (const e of edges) {
+        if (e.source === n.id || e.target === n.id) {
+          const otherId = e.source === n.id ? e.target : e.source;
+          const other = nodes.find(nn => nn.id === otherId);
+          if (!other) continue;
+          const dx = other.x - n.x;
+          const dy = other.y - n.y;
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const f = (dist - SPRING_LENGTH) * SPRING_STRENGTH;
+          fx += (dx / dist) * f;
+          fy += (dy / dist) * f;
+        }
+      }
+
+      // Center attraction
+      fx += (width / 2 - n.x) * CENTER_ATTRACT;
+      fy += (height / 2 - n.y) * CENTER_ATTRACT;
+
+      // Apply
+      n.vx = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, (n.vx + fx) * DAMPING));
+      n.vy = Math.max(-MAX_SPEED, Math.min(MAX_SPEED, (n.vy + fy) * DAMPING));
+      n.x += n.vx;
+      n.y += n.vy;
+
+      // Bounds
+      n.x = Math.max(n.radius + 10, Math.min(width - n.radius - 10, n.x));
+      n.y = Math.max(n.radius + 10, Math.min(height - n.radius - 10, n.y));
+    }
+
+    // Render
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, width, height);
+
+    // Grid background
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < width; x += 40) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+    }
+    for (let y = 0; y < height; y += 40) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+    }
+
+    // Edges
+    for (const e of edges) {
+      const s = nodes.find(n => n.id === e.source);
+      const t = nodes.find(n => n.id === e.target);
+      if (!s || !t) continue;
+
+      ctx.beginPath();
+      ctx.moveTo(s.x, s.y);
+      ctx.lineTo(t.x, t.y);
+
+      if (e.type === 'offer') {
+        ctx.strokeStyle = 'rgba(59,130,246,0.4)';
+        ctx.setLineDash([]);
+      } else if (e.type === 'career') {
+        ctx.strokeStyle = 'rgba(249,115,22,0.4)';
+        ctx.setLineDash([6, 4]);
+      } else {
+        ctx.strokeStyle = 'rgba(148,163,184,0.25)';
+        ctx.setLineDash([2, 3]);
+      }
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Nodes
+    for (const n of nodes) {
+      const isHovered = hoveredRef.current === n.id;
+      const isSelected = state.selectedNodeId === n.id;
+      const r = n.radius * (isHovered ? 1.15 : 1);
+
+      // Glow
+      if (isHovered || isSelected) {
+        const grd = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, r * 2);
+        grd.addColorStop(0, n.color + '40');
+        grd.addColorStop(1, 'transparent');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Shape
+      ctx.fillStyle = n.color;
+      ctx.beginPath();
+      if (n.type === 'system') {
+        // Hexagon
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI / 3) * i - Math.PI / 6;
+          const hx = n.x + r * Math.cos(angle);
+          const hy = n.y + r * Math.sin(angle);
+          i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
+        }
+        ctx.closePath();
+      } else if (n.type === 'user') {
+        // Star
+        for (let i = 0; i < 10; i++) {
+          const angle = (Math.PI / 5) * i - Math.PI / 2;
+          const sr = i % 2 === 0 ? r : r * 0.5;
+          const sx = n.x + sr * Math.cos(angle);
+          const sy = n.y + sr * Math.sin(angle);
+          i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
+        }
+        ctx.closePath();
+      } else {
+        ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      }
+      ctx.fill();
+
+      // Border for selected
+      if (isSelected) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+      }
+
+      // Icon
+      ctx.font = `${Math.max(14, r * 0.7)}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(n.icon, n.x, n.y - 1);
+
+      // Label
+      ctx.font = `11px sans-serif`;
+      ctx.fillStyle = isHovered ? '#fff' : '#cbd5e1';
+      ctx.fillText(n.label, n.x, n.y + r + 14);
+    }
+
+    animRef.current = requestAnimationFrame(simulate);
+  }, [state.selectedNodeId]);
+
+  useEffect(() => {
+    animRef.current = requestAnimationFrame(simulate);
+    return () => cancelAnimationFrame(animRef.current);
+  }, [simulate]);
+
+  // Mouse handlers
+  const getMousePos = (e: React.MouseEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  };
+
+  const findNodeAt = (x: number, y: number) => {
+    for (let i = nodesRef.current.length - 1; i >= 0; i--) {
+      const n = nodesRef.current[i];
+      const dx = x - n.x;
+      const dy = y - n.y;
+      if (Math.sqrt(dx * dx + dy * dy) < n.radius + 5) return n;
+    }
+    return null;
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    const { x, y } = getMousePos(e);
+    const node = findNodeAt(x, y);
+    if (node) {
+      dragRef.current = { nodeId: node.id, offsetX: x - node.x, offsetY: y - node.y };
+      dispatch({ type: 'SET_SELECTED_NODE', payload: node.id });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const { x, y } = getMousePos(e);
+    if (dragRef.current.nodeId) {
+      const node = nodesRef.current.find(n => n.id === dragRef.current.nodeId);
+      if (node) {
+        node.x = x - dragRef.current.offsetX;
+        node.y = y - dragRef.current.offsetY;
+        node.vx = 0;
+        node.vy = 0;
+      }
+    } else {
+      const node = findNodeAt(x, y);
+      hoveredRef.current = node?.id || null;
+      if (node) {
+        setTooltip({ x: e.clientX + 12, y: e.clientY - 12, node });
+      } else {
+        setTooltip(null);
+      }
+    }
+  };
+
+  const handleMouseUp = () => {
+    dragRef.current.nodeId = null;
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    const { x, y } = getMousePos(e);
+    const node = findNodeAt(x, y);
+    if (node) {
+      dispatch({ type: 'SET_SELECTED_NODE', payload: node.id });
+      if (node.type === 'school') {
+        dispatch({ type: 'SET_SELECTED_SCHOOL', payload: node.id });
+        dispatch({ type: 'SET_RIGHT_PANEL', payload: 'research' });
+      }
+    }
+  };
+
   return (
-    <div ref={containerRef} className="relative w-full h-full overflow-hidden"
-      style={{ backgroundColor:'#FAFAFA', backgroundImage:'radial-gradient(#D0D0D0 1.5px,transparent 1.5px)', backgroundSize:'24px 24px' }}>
-      <svg ref={svgRef} className="w-full h-full block" />
+    <div className="relative w-full h-full">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full cursor-grab active:cursor-grabbing"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={() => { dragRef.current.nodeId = null; hoveredRef.current = null; setTooltip(null); }}
+        onClick={handleClick}
+      />
 
-      {/* Search Bar */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20">
-        <form onSubmit={e => { e.preventDefault(); searchAndZoom(searchQuery); }} className="flex items-center gap-1">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="搜索学校..."
-              className="w-48 pl-8 pr-8 py-2 text-sm bg-white/95 backdrop-blur-sm border border-stone-200 rounded-xl shadow-lg focus:outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all"
-            />
-            {searchQuery && (
-              <button type="button" onClick={() => { setSearchQuery(''); setSearchResult(null); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-stone-100">
-                <X className="w-3 h-3 text-stone-400" />
-              </button>
-            )}
-          </div>
-        </form>
-        {searchResult && (
-          <div className="mt-1 text-center">
-            <span className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">
-              已定位: {searchResult}
-            </span>
-          </div>
-        )}
-        {searchQuery && !searchResult && (
-          <div className="mt-1 text-center">
-            <span className="text-[10px] text-red-400">未找到匹配学校</span>
-          </div>
-        )}
-      </div>
-
-      <SchoolInfoCard schoolName={selectedSchool} onClose={() => setSelectedSchool(null)} />
-
-      {matchedIds.length > 0 && (
-        <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-sm rounded-xl border border-emerald-200 px-4 py-2.5 shadow-md z-10">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-emerald-600">当前方案</span>
-            <span className="text-xs text-stone-400">{matchedIds.length} 所院校</span>
-          </div>
-          <div className="mt-1.5 space-y-0.5 max-h-[200px] overflow-auto">
-            {matchedIds.slice(0, 8).map(id => {
-              const s = (state.graphNodes || []).find((n: any) => n.id === id);
-              return s ? (
-                <div key={id} className="text-[11px] text-stone-600 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{backgroundColor: TIER_COLORS[(s as any).tier] || '#999'}} />
-                  {(s as any).label}
+      {/* Floating info panel */}
+      {state.selectedNodeId && (
+        <div className="absolute top-3 left-3 backdrop-blur-md rounded-xl p-3 border border-white/10 text-white max-w-[200px]"
+          style={{ backgroundColor: 'rgba(15,23,42,0.8)' }}>
+          {(() => {
+            const node = nodesRef.current.find(n => n.id === state.selectedNodeId);
+            if (!node) return null;
+            return (
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">{node.icon}</span>
+                  <span className="font-medium text-sm">{node.label}</span>
                 </div>
-              ) : null;
-            })}
-          </div>
+                <div className="text-xs text-slate-400">
+                  类型: {node.type === 'school' ? '院校' : node.type === 'major' ? '专业' : node.type === 'career' ? '就业方向' : node.type === 'role' ? '角色' : node.type === 'user' ? '用户数据' : '系统'}
+                </div>
+                {node.type === 'school' && (
+                  <button
+                    onClick={() => {
+                      dispatch({ type: 'SET_SELECTED_SCHOOL', payload: node.id });
+                      dispatch({ type: 'SET_RIGHT_PANEL', payload: 'research' });
+                    }}
+                    className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
+                  >
+                    查看深度研究 →
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
       )}
 
-      <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-lg border border-stone-200 px-3 py-2 shadow-sm">
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-          {[['985','#D97706'],['211','#2563EB'],['双一流','#7C3AED']].map(([l,c]) => (
-            <div key={String(c)} className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor:c}} /><span className="text-stone-500">{l}</span></div>
-          ))}
+      {/* Graph Context */}
+      <div className="absolute top-3 right-3 backdrop-blur-md rounded-xl p-3 border border-white/10 text-white max-w-[280px]"
+        style={{ backgroundColor: 'rgba(15,23,42,0.8)' }}>
+        <div className="text-xs font-medium text-slate-200 mb-1">图谱上下文</div>
+        <div className="text-[11px] text-slate-300 space-y-1">
+          <div>来源：{activeUpload?.fileName || '默认知识图谱'}</div>
+          <div>文档ID：{activeUpload?.documentId || '—'}</div>
+          <div>图谱ID：{activeUpload?.graphId || '—'}</div>
+          <div>模式：{activeUpload?.graphMode || 'default'}</div>
+          {state.recommendMeta && (
+            <>
+              <div className="pt-1 text-slate-400">报告上下文</div>
+              <div>省份：{String(state.recommendMeta.profile.province ?? '—')}</div>
+              <div>分数：{String(state.recommendMeta.profile.score ?? '—')}</div>
+              <div>档位：{String(state.recommendMeta.profile.auto_tier ?? '—')}</div>
+            </>
+          )}
         </div>
+      </div>
+
+      {/* Tooltip */}
+      {tooltip && (
+        <div
+          className="fixed pointer-events-none z-50 px-2 py-1 rounded-md text-xs text-white backdrop-blur-sm"
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+            backgroundColor: 'rgba(15,23,42,0.85)',
+          }}
+        >
+          {tooltip.node.label}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="absolute bottom-3 left-3 backdrop-blur-md rounded-lg p-2 border border-white/10 text-white text-[10px]"
+        style={{ backgroundColor: 'rgba(15,23,42,0.8)' }}>
+        <div className="flex items-center gap-1.5 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" />专业</div>
+        <div className="flex items-center gap-1.5 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" />院校</div>
+        <div className="flex items-center gap-1.5 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-500" />就业</div>
+        <div className="flex items-center gap-1.5 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-500" />角色</div>
+        <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />用户</div>
       </div>
     </div>
   );

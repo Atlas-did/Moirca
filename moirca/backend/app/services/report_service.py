@@ -103,14 +103,16 @@ class ReportService:
         lines.append("（模板报告：未配置 LLM_API_KEY，内容用于联调结构）")
         lines.append("")
         lines.append("# 你的画像")
-        lines.append(f"- 省份：{profile.get('province','')}  分数：{profile.get('score','')}  档位：{profile.get('tier','')}")
+        lines.append(f"- 省份：{profile.get('province','')}  分数：{profile.get('score','')}  档位：{profile.get('tier') or profile.get('auto_tier') or profile.get('user_tier') or ''}")
         lines.append(f"- 侧重点：{profile.get('priority','')}  排除：{profile.get('exclusion','')}")
         if report_context:
             lines.append("- 上传文档：" + ", ".join(report_context.get("document_ids", []) or []))
         lines.append("")
         lines.append("# 推荐清单（冲/稳/保）")
         for i, item in enumerate(top, 1):
-            lines.append(f"{i}. {item.get('profession_name','')}（{item.get('strategy','')}）- 分数 {item.get('match_score','')} ")
+            name = item.get('major') or item.get('profession_name') or ''
+            tier = item.get('tier') or item.get('strategy') or ''
+            lines.append(f"{i}. {name}（{tier}）- 分数 {item.get('match_score','')} ")
         lines.append("")
         lines.append("# 风险预警")
         lines.append("- 关注滑档/调剂/信息时效/样本偏差等风险；对低置信度条目降级处理。")

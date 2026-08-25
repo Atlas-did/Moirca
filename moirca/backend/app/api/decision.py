@@ -35,8 +35,8 @@ DECISION_TREE = {
         "id": "exclusion",
         "question": "有没有特别不喜欢的？",
         "options": [
-            {"key": "A", "label": "不想学数学/物理", "exclude": ["理学", "工学"]},
-            {"key": "B", "label": "不想进工厂/工地", "exclude": ["机械", "土木", "化工"]},
+            {"key": "A", "label": "不想学数学/物理", "exclude": ["理学", "数学", "物理"]},
+            {"key": "B", "label": "不想进工厂/工地", "exclude": ["土木", "机械", "化工", "矿业"]},
             {"key": "C", "label": "不想当老师/医生", "exclude": ["师范", "临床医学"]},
             {"key": "D", "label": "没有特别限制", "exclude": []},
         ],
@@ -149,7 +149,7 @@ def submit_decision_answer(request: DecisionAnswerRequest):
     candidate_majors = []
     candidate_schools = set()
     for pf in all_profs:
-        if pf.category in exclude_categories:
+        if DecisionTreeEngine.is_excluded(pf.name, pf.category, pf.discipline, exclude_categories):
             continue
         candidate_majors.append(pf.code)
         for s in graph.get_schools_for_profession(pf.code):
