@@ -1,0 +1,32 @@
+# 环境配置（含 API Key）
+.env
+
+# 数据库
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 日志
+logs/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
