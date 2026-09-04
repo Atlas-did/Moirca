@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Moirca WebBridge</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 320px; font-family: -apple-system, sans-serif; padding: 16px; }
+    .status { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.connected { background: #22c55e; }
+    .status-dot.disconnected { background: #ef4444; }
+    .status-text { font-size: 13px; color: #666; }
+    h1 { font-size: 16px; margin-bottom: 8px; }
+    .info { font-size: 12px; color: #999; margin-bottom: 12px; }
+    .tools { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tool { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 10px; font-size: 11px; }
+    .footer { margin-top: 16px; font-size: 11px; color: #999; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="status">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">检查连接中...</span>
+  </div>
+  <h1>Moirca WebBridge</h1>
+  <p class="info">AI Agent 浏览器操控桥接插件</p>
+  <div class="tools">
+    <div class="tool">navigate</div>
+    <div class="tool">click</div>
+    <div class="tool">fill</div>
+    <div class="tool">snapshot</div>
+    <div class="tool">screenshot</div>
+    <div class="tool">scroll</div>
+    <div class="tool">evaluate</div>
+  </div>
+  <div class="footer">v1.0.0 · Connected to Daemon</div>
+
+  <script>
+    // 检查 WebSocket 连接状态
+    chrome.storage.local.get(['wsStatus'], (result) => {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (result.wsStatus === 'connected') {
+        dot.classList.add('connected');
+        text.textContent = '已连接到 Daemon';
+      } else {
+        dot.classList.add('disconnected');
+        text.textContent = '未连接 - 请启动 Daemon';
+      }
+    });
+  </script>
+</body>
+</html>

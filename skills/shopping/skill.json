@@ -1,0 +1,19 @@
+{
+  "name": "shopping-assistant",
+  "description": "智能购物助手 - 对比价格、找优惠券、分析商品评价",
+  "version": "1.0.0",
+  "author": "Moirca",
+  "tools": ["browser_navigate", "browser_snapshot", "browser_screenshot", "browser_click"],
+  "workflows": {
+    "compare-prices": {
+      "description": "在多个电商平台对比同一商品价格",
+      "steps": [
+        { "action": "browser_navigate", "params": { "url": "https://search.jd.com/search?keyword={query}" } },
+        { "action": "browser_snapshot", "params": { "refs": true } },
+        { "action": "browser_navigate", "params": { "url": "https://s.taobao.com/search?q={query}" } },
+        { "action": "browser_snapshot", "params": { "refs": true } }
+      ],
+      "analysis": "对比两个平台的价格、评分、销量，给出推荐"
+    }
+  }
+}

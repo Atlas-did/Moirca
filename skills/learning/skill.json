@@ -1,0 +1,18 @@
+{
+  "name": "learning-assistant",
+  "description": "学习助手 - 论文阅读、代码学习、知识整理",
+  "version": "1.0.0",
+  "author": "Moirca",
+  "tools": ["browser_navigate", "browser_snapshot", "browser_screenshot", "browser_scroll"],
+  "workflows": {
+    "read-paper": {
+      "description": "阅读并总结学术论文",
+      "steps": [
+        { "action": "browser_navigate", "params": { "url": "{paper_url}" } },
+        { "action": "browser_snapshot" },
+        { "action": "browser_screenshot" }
+      ],
+      "analysis": "提取论文核心贡献、方法论、实验结果，生成结构化总结"
+    }
+  }
+}

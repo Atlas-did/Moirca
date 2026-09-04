@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Moirca WebBridge",
+  "description": "AI Agent 浏览器操控桥接插件",
+  "version": "1.0.0",
+  "permissions": [
+    "activeTab",
+    "debugger",
+    "storage",
+    "tabs",
+    "tabCapture",
+    "scripting"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Moirca WebBridge"
+  },
+  "icons": {
+    "16": "public/icon16.png",
+    "48": "public/icon48.png",
+    "128": "public/icon128.png"
+  }
+}
