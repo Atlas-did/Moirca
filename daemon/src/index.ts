@@ -1,159 +1,82 @@
-// WebBridge Daemon - MCP Server + WebSocket Client
-// 作为 MCP Server 接收 AI 客户端的 tool calls
-// 作为 WebSocket Client 连接 Chrome Extension
-
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+// ============================================================
+// daemon/src/index.ts —— 启动编排 + 环境变量装配
+// 三件事:
+//   1. 启动 ExtensionBridge(WS Server,127.0.0.1:9223)
+//   2. 生成一次性 token:打印终端 + 写 .bridge-token(0600)
+//   3. 启动 MCP Server(stdio;不额外开放 TCP MCP)
+// ============================================================
+import { writeFile, chmod, mkdir } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { WebSocketClient } from './ws-client.js';
+import { loadDaemonEnv } from './env.js';
+import { ExtensionBridge, generateToken } from './extension-bridge.js';
+import { ArtifactsStore } from './artifacts.js';
+import { SnapshotStore } from './snapshot-store.js';
+import { EvidenceClient } from './evidence-client.js';
+import { WebBridge } from './bridge.js';
+import { createMcpServer } from './mcp-server.js';
+import { WS_URL_DEFAULT } from './types/index.js';
 
-const WS_URL = process.env.WEBBRIDGE_WS_URL || 'ws://localhost:9222';
+async function main(): Promise<void> {
+  const env = loadDaemonEnv();
+  const artifacts = new ArtifactsStore(env.artifacts);
+  await mkdir(artifacts.root, { recursive: true }).catch(() => undefined);
 
-async function main() {
-  // 1. 启动 WebSocket Client（连 Chrome Extension）
-  const wsClient = new WebSocketClient(WS_URL);
-  await wsClient.connect();
+  const token = env.token ?? generateToken();
 
-  // 2. 启动 MCP Server（stdio 模式，供 Claude Desktop 等客户端使用）
-  const server = new McpServer({
-    name: 'webbridge',
-    version: '1.0.0',
+  const evidence = new EvidenceClient(env.evidenceUrl, env.evidenceEnabled, fetch, env.backendToken);
+
+  const ext = new ExtensionBridge({
+    port: env.wsPort,
+    host: env.wsHost,
+    commandTimeoutMs: env.commandTimeoutMs,
+    artifactRoot: artifacts.root,
+    ...(env.token ? { token: env.token } : {}),
+    analysis: { artifacts, evidence },
+  });
+  await ext.start();
+
+  // 一次性 token:打印 + 落盘(0600)。扩展 popup 设置页粘贴它完成握手。
+  if (!env.token) {
+    const tokenPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.bridge-token');
+    try {
+      await writeFile(tokenPath, token + '\n', { mode: 0o600 });
+      await chmod(tokenPath, 0o600);
+      console.error(`[webbridge] token 已写入 ${tokenPath}(0600)`);
+    } catch (e) {
+      console.error(`[webbridge] token 写盘失败(仍打印于下):${(e as Error).message}`);
+    }
+  }
+  console.error('=========================================================');
+  console.error('[webbridge] 本次会话 token(粘贴到扩展 popup 设置页):');
+  console.error(`  ${token}`);
+  console.error('=========================================================');
+
+  const bridge = new WebBridge({
+    ext,
+    artifacts,
+    snapshots: new SnapshotStore(),
+    evidence,
+    commandTimeoutMs: env.commandTimeoutMs,
+    ...(env.readerApiUrl ? { readerApiUrl: env.readerApiUrl } : {}),
   });
 
-  // 注册 MCP tools
-  registerTools(server, wsClient);
+  const server = createMcpServer(bridge, { routeToolEnabled: env.routeToolEnabled });
+  await server.connect(new StdioServerTransport());
 
-  // 3. 启动 stdio transport
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+  console.error(`[webbridge] MCP Server 已就绪(stdio);WS:${WS_URL_DEFAULT}(env 可改 WEBBRIDGE_WS_PORT)`);
+  console.error(`[webbridge] evidence 钩子:${env.evidenceEnabled ? '开启' : '关闭'} → ${env.evidenceUrl}`);
 
-  console.error('[WebBridge Daemon] Started');
-  console.error(`[WebBridge Daemon] WebSocket: ${WS_URL}`);
-  console.error('[WebBridge Daemon] MCP Server: stdio');
-}
-
-function registerTools(server: McpServer, wsClient: WebSocketClient) {
-  // browser_navigate
-  server.tool(
-    'browser_navigate',
-    'Navigate to a URL in the browser',
-    { url: { type: 'string', description: 'URL to navigate to' } },
-    async ({ url }) => {
-      const result = await wsClient.sendCommand('navigate', { url });
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
-
-  // browser_click
-  server.tool(
-    'browser_click',
-    'Click an element on the page',
-    {
-      selector: { type: 'string', description: 'CSS selector' },
-      ref: { type: 'string', description: 'Element ref from snapshot' },
-    },
-    async (params) => {
-      const result = await wsClient.sendCommand('click', params);
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
-
-  // browser_fill
-  server.tool(
-    'browser_fill',
-    'Fill an input field',
-    {
-      selector: { type: 'string', description: 'CSS selector' },
-      ref: { type: 'string', description: 'Element ref from snapshot' },
-      value: { type: 'string', description: 'Value to fill' },
-    },
-    async (params) => {
-      const result = await wsClient.sendCommand('fill', params);
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
-
-  // browser_snapshot
-  server.tool(
-    'browser_snapshot',
-    'Get accessibility tree / page content',
-    { refs: { type: 'boolean', description: 'Include ref mappings' } },
-    async (params) => {
-      const result = await wsClient.sendCommand('snapshot', params);
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
-
-  // browser_screenshot
-  server.tool(
-    'browser_screenshot',
-    'Take a screenshot of the current page',
-    {
-      format: { type: 'string', enum: ['png', 'jpeg'], description: 'Image format' },
-    },
-    async (params) => {
-      const result = await wsClient.sendCommand('screenshot', params);
-      // screenshot 返回 base64，MCP 客户端需要特殊处理
-      if (result.success && result.image) {
-        return {
-          content: [{
-            type: 'image',
-            data: result.image,
-            mimeType: `image/${params.format || 'png'}`,
-          }],
-        };
-      }
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
-
-  // browser_scroll
-  server.tool(
-    'browser_scroll',
-    'Scroll the page',
-    {
-      direction: { type: 'string', enum: ['up', 'down', 'top', 'bottom'] },
-    },
-    async (params) => {
-      const result = await wsClient.sendCommand('scroll', params);
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
-
-  // browser_evaluate
-  server.tool(
-    'browser_evaluate',
-    'Execute JavaScript in the page',
-    { expression: { type: 'string', description: 'JS expression to evaluate' } },
-    async (params) => {
-      const result = await wsClient.sendCommand('evaluate', params);
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
-
-  // browser_get_tabs
-  server.tool(
-    'browser_get_tabs',
-    'List all open browser tabs',
-    {},
-    async () => {
-      const result = await wsClient.sendCommand('get_tabs', {});
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
-
-  // browser_switch_tab
-  server.tool(
-    'browser_switch_tab',
-    'Switch to a specific tab',
-    { tabId: { type: 'number', description: 'Tab ID to switch to' } },
-    async (params) => {
-      const result = await wsClient.sendCommand('switch_tab', params);
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
-    }
-  );
+  const shutdown = async () => {
+    await ext.stop();
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
 main().catch((e) => {
-  console.error('[WebBridge Daemon] Fatal error:', e);
+  console.error('[webbridge] Fatal:', e);
   process.exit(1);
 });

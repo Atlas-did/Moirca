@@ -101,82 +101,87 @@ export default function ReportPanel() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-50">
-      <div className="h-10 shrink-0 px-3 border-b border-slate-200 flex items-center justify-between bg-white">
-        <div className="flex items-center gap-2 text-slate-700">
-          <FileText className="w-4 h-4 text-blue-500" />
-          <span className="text-sm font-medium">报告 Markdown 渲染</span>
+    <div className="h-full flex flex-col bg-background">
+      <div className="h-10 shrink-0 px-3 border-b border-border flex items-center justify-between bg-card">
+        <div className="flex items-center gap-2 text-foreground">
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          <span className="text-[13px] font-medium">报告 Markdown 渲染</span>
         </div>
         <button
           onClick={() => {
             loadHistory();
             dispatch({ type: 'SET_ACTIVE_REPORT', payload: reportItems[0]?.id || null });
           }}
-          className="text-xs text-blue-600 hover:text-blue-500 flex items-center gap-1"
+          className="text-xs text-primary hover:text-primary/80 flex items-center gap-1"
         >
           <RefreshCw className="w-3 h-3" />
           刷新
         </button>
       </div>
 
-      <div className="px-3 py-2 bg-white border-b border-slate-200 flex items-center gap-2">
+      <div className="px-3 py-2 bg-card border-b border-border flex items-center gap-2">
         <button
           onClick={handleGenerateCurrent}
           disabled={generating}
-          className="text-xs px-2.5 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
+          className="text-xs px-2.5 py-1.5 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 shadow-xs flex items-center gap-1"
         >
           {generating ? <RefreshCw className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
           生成当前报告
         </button>
-        <div className="text-[10px] text-slate-500 truncate">
+        <div className="text-[11px] text-muted-foreground truncate">
           绑定文档：{state.activeDocumentId || '无'} · 推荐：{state.recommendMeta ? '已就绪' : '未生成'}
         </div>
       </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-[220px_1fr]">
-        <div className="border-r border-slate-200 bg-white overflow-y-auto">
-          <div className="p-3 text-xs text-slate-500 flex items-center gap-1">
+        <div className="border-r border-border bg-card overflow-y-auto thin-scrollbar">
+          <div className="eyebrow flex items-center gap-1 px-3 pt-3 pb-2">
             <CalendarDays className="w-3 h-3" />
             历史报告
           </div>
-          <div className="space-y-2 px-2 pb-3">
+          <div className="px-2 pb-3">
             {reportItems.length === 0 && (
-              <div className="px-3 py-4 text-xs text-slate-400">暂无报告</div>
+              <div className="px-3 py-4 text-xs text-muted-foreground">暂无报告</div>
             )}
             {reportItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => dispatch({ type: 'SET_ACTIVE_REPORT', payload: item.id })}
-                className={`w-full text-left rounded-lg border px-3 py-2 transition-colors ${
-                  item.id === activeReportId ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                className={`w-full border-l-2 px-2 py-1.5 text-left transition-colors duration-150 ${
+                  item.id === activeReportId
+                    ? 'border-primary bg-accent/40'
+                    : 'border-transparent hover:bg-accent/60'
                 }`}
               >
-                <div className="text-xs font-medium text-slate-800 truncate">{item.title}</div>
-                <div className="text-[10px] text-slate-500 truncate">{item.id}</div>
+                <div className={`text-xs truncate ${item.id === activeReportId ? 'font-medium text-primary' : 'text-foreground'}`}>{item.title}</div>
+                <div className="text-[11px] text-muted-foreground truncate tabular-nums">{item.id}</div>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="overflow-y-auto p-4">
+        <div className="overflow-y-auto thin-scrollbar px-4 py-4">
           {selectedItem && (
-            <div className="mb-4 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
-              <div className="flex items-center gap-2 mb-1 text-slate-700 font-medium">
-                <LinkIcon className="w-3.5 h-3.5" />
+            <div className="mb-4 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+              <div className="mb-1.5 flex items-center gap-2 text-[13px] font-medium text-foreground">
+                <LinkIcon className="w-3.5 h-3.5 text-muted-foreground" />
                 当前报告上下文
               </div>
-              <div>报告 ID：{selectedItem.id}</div>
-              <div>更新时间：{String(selectedItem.updated_at || '')}</div>
+              <div className="tabular-nums">报告 ID：{selectedItem.id}</div>
+              <div className="tabular-nums">更新时间：{String(selectedItem.updated_at || '')}</div>
               <div>来源：历史列表 / Markdown 文件</div>
             </div>
           )}
 
-          {error && <div className="mb-3 text-xs text-red-500">{error}</div>}
-          {activeReportId && !content && <div className="text-xs text-slate-500 mb-3">正在加载报告...</div>}
+          {error && <div className="mb-3 text-xs text-destructive">{error}</div>}
+          {activeReportId && !content && <div className="text-xs text-muted-foreground mb-3">正在加载报告...</div>}
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            {selectedItem && content ? <MarkdownRenderer markdown={content} /> : <div className="text-sm text-slate-400">请选择左侧报告以查看渲染结果。</div>}
-          </div>
+          {/* 文章直排:bg-background 上裸排(唯一一屏按「文章」排,不再包卡片) */}
+          {selectedItem && content ? (
+            <MarkdownRenderer markdown={content} />
+          ) : (
+            <div className="flex h-40 items-center justify-center text-[13px] text-muted-foreground">请选择左侧报告以查看渲染结果。</div>
+          )}
         </div>
       </div>
     </div>

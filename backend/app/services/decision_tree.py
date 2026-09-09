@@ -2,7 +2,6 @@
 决策树引擎
 P0核心：根据分数+省份+三步选择 → 生成用户画像 + 冲稳保策略
 """
-from typing import Optional
 
 
 class DecisionTreeEngine:
@@ -71,8 +70,7 @@ class DecisionTreeEngine:
         }
         ratio = ratio_map.get(auto_tier, ratio_map["C"])
 
-        # 优先级权重调整
-        priority_weights = {"school_prestige": 0.3, "major_strength": 0.3, "city_development": 0.2, "career_prospect": 0.2}
+        # 优先级权重调整(priority_weights 预留字段,当前决策仅消费 priority)
         priority = cls.STEP2_OPTIONS.get(step2, {}).get("priority", "career_prospect")
 
         # 排除类别

@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "WebBridge (pro)",
+  "description": "AI Agent 浏览器受控执行桥(chrome.debugger/CDP 全权,daemon ws://127.0.0.1:9223)",
+  "version": "2.0.0",
+  "permissions": ["activeTab", "debugger", "storage", "tabs", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "WebBridge Pro"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

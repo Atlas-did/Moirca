@@ -6,12 +6,44 @@ import { getGraphData } from '@/api/graph';
 // ============================================================
 // 物理引擎常量
 // ============================================================
-const REPULSION_FORCE = 800;
-const SPRING_LENGTH = 120;
-const SPRING_STRENGTH = 0.03;
+const REPULSION_FORCE = 1400;
+const SPRING_LENGTH = 90;
+const SPRING_STRENGTH = 0.02;
 const CENTER_ATTRACT = 0.008;
 const DAMPING = 0.88;
 const MAX_SPEED = 6;
+
+// ============================================================
+// 画布配色(DESIGN_SPEC_V2 §3 — Obsidian graph view 式;画布恒为深色,双主题不变,白名单内)
+// ============================================================
+const CANVAS_BG = '#101720';
+const CANVAS_GRID = 'rgba(255,255,255,0.015)';
+const CANVAS_GRID_STEP = 48;
+const EDGE_COLOR = 'rgba(255,255,255,0.08)';
+const EDGE_COLOR_HOVER = 'rgba(255,255,255,0.32)';
+const EDGE_WIDTH = 1;
+const EDGE_WIDTH_HOVER = 1.5;
+const LABEL_COLOR = 'rgba(185,194,207,0.55)';
+const LABEL_COLOR_ACTIVE = '#E8EAED';
+const LABEL_SIZE = 10;
+const NODE_STROKE = 'rgba(255,255,255,0.10)';
+const CLUSTER_ALPHA = 0.07;
+const SELECT_STROKE = '#E8EAED';
+
+// 渲染半径脱离数据(v2 §3.2:n.radius/icon 字段保留在数据层,渲染层不读)
+const NODE_R: Record<string, number> = { user: 8, school: 5, major: 4, career: 3.5, role: 4, system: 6 };
+const nodeR = (type: string) => NODE_R[type] ?? 4;
+
+// 节点分类色:专业 靛蓝 / 院校 松绿 / 就业 赭橙 / 角色 灰紫 / 用户 沙金
+const NODE_PALETTE: Record<string, string> = {
+  major: '#2E6DA4',
+  school: '#2F8A6B',
+  career: '#C05621',
+  role: '#7A5FA0',
+  user: '#D9A13B',
+  system: '#46586E',
+};
+const nodeColor = (type: string, fallback: string) => NODE_PALETTE[type] ?? fallback;
 
 export default function KnowledgeGraph() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -127,112 +159,105 @@ export default function KnowledgeGraph() {
       n.x += n.vx;
       n.y += n.vy;
 
-      // Bounds
-      n.x = Math.max(n.radius + 10, Math.min(width - n.radius - 10, n.x));
-      n.y = Math.max(n.radius + 10, Math.min(height - n.radius - 10, n.y));
+      // Bounds(渲染半径,不再读数据层 radius)
+      const br = nodeR(n.type);
+      n.x = Math.max(br + 10, Math.min(width - br - 10, n.x));
+      n.y = Math.max(br + 10, Math.min(height - br - 10, n.y));
     }
 
     // Render
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#0f172a';
+    ctx.fillStyle = CANVAS_BG;
     ctx.fillRect(0, 0, width, height);
 
     // Grid background
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.strokeStyle = CANVAS_GRID;
     ctx.lineWidth = 1;
-    for (let x = 0; x < width; x += 40) {
+    for (let x = 0; x < width; x += CANVAS_GRID_STEP) {
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
     }
-    for (let y = 0; y < height; y += 40) {
+    for (let y = 0; y < height; y += CANVAS_GRID_STEP) {
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
     }
 
-    // Edges
+    // 邻接表(每帧一次,供悬停邻居的邻边与标签提亮;v2 §3.3)
+    const adjacency = new Map<string, Set<string>>();
+    for (const e of edges) {
+      if (!adjacency.has(e.source)) adjacency.set(e.source, new Set());
+      if (!adjacency.has(e.target)) adjacency.set(e.target, new Set());
+      adjacency.get(e.source)!.add(e.target);
+      adjacency.get(e.target)!.add(e.source);
+    }
+    const activeId: string | null = hoveredRef.current ?? state.selectedNodeId;
+
+    // Edges:全部实线,悬停邻边提亮(关系类型不再靠线型区分)
     for (const e of edges) {
       const s = nodes.find(n => n.id === e.source);
       const t = nodes.find(n => n.id === e.target);
       if (!s || !t) continue;
 
+      const adjacent = activeId !== null
+        && (e.source === activeId || e.target === activeId);
+
       ctx.beginPath();
       ctx.moveTo(s.x, s.y);
       ctx.lineTo(t.x, t.y);
-
-      if (e.type === 'offer') {
-        ctx.strokeStyle = 'rgba(59,130,246,0.4)';
-        ctx.setLineDash([]);
-      } else if (e.type === 'career') {
-        ctx.strokeStyle = 'rgba(249,115,22,0.4)';
-        ctx.setLineDash([6, 4]);
-      } else {
-        ctx.strokeStyle = 'rgba(148,163,184,0.25)';
-        ctx.setLineDash([2, 3]);
-      }
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = adjacent ? EDGE_COLOR_HOVER : EDGE_COLOR;
+      ctx.lineWidth = adjacent ? EDGE_WIDTH_HOVER : EDGE_WIDTH;
       ctx.stroke();
-      ctx.setLineDash([]);
     }
 
-    // Nodes
+    // 聚类淡彩(v2 §3.2.4 — 同色系极淡色晕,Obsidian 式)
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = CLUSTER_ALPHA;
+    for (const n of nodes) {
+      const glow = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, 18);
+      glow.addColorStop(0, nodeColor(n.type, n.color));
+      glow.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+
+    // Nodes(统一实心小圆 + 用户空心环;无 emoji、无光环;v2 §3.2)
     for (const n of nodes) {
       const isHovered = hoveredRef.current === n.id;
       const isSelected = state.selectedNodeId === n.id;
-      const r = n.radius * (isHovered ? 1.15 : 1);
+      const isNeighbor = (hoveredRef.current !== null && adjacency.get(hoveredRef.current)?.has(n.id))
+        || (state.selectedNodeId !== null && adjacency.get(state.selectedNodeId)?.has(n.id));
+      const r = nodeR(n.type) + (isHovered ? 1 : 0);
+      const fill = nodeColor(n.type, n.color);
 
-      // Glow
-      if (isHovered || isSelected) {
-        const grd = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, r * 2);
-        grd.addColorStop(0, n.color + '40');
-        grd.addColorStop(1, 'transparent');
-        ctx.fillStyle = grd;
-        ctx.beginPath();
-        ctx.arc(n.x, n.y, r * 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Shape
-      ctx.fillStyle = n.color;
       ctx.beginPath();
-      if (n.type === 'system') {
-        // Hexagon
-        for (let i = 0; i < 6; i++) {
-          const angle = (Math.PI / 3) * i - Math.PI / 6;
-          const hx = n.x + r * Math.cos(angle);
-          const hy = n.y + r * Math.sin(angle);
-          i === 0 ? ctx.moveTo(hx, hy) : ctx.lineTo(hx, hy);
-        }
-        ctx.closePath();
-      } else if (n.type === 'user') {
-        // Star
-        for (let i = 0; i < 10; i++) {
-          const angle = (Math.PI / 5) * i - Math.PI / 2;
-          const sr = i % 2 === 0 ? r : r * 0.5;
-          const sx = n.x + sr * Math.cos(angle);
-          const sy = n.y + sr * Math.sin(angle);
-          i === 0 ? ctx.moveTo(sx, sy) : ctx.lineTo(sx, sy);
-        }
-        ctx.closePath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      if (n.type === 'user') {
+        // 用户节点 = 空心圆环:画布底色填充 + 2px 描环
+        ctx.fillStyle = CANVAS_BG;
+        ctx.fill();
+        ctx.strokeStyle = isSelected ? SELECT_STROKE : fill;
+        ctx.lineWidth = 2;
+        ctx.stroke();
       } else {
-        ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      }
-      ctx.fill();
-
-      // Border for selected
-      if (isSelected) {
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.5;
+        // 同色 0.78 实心 + 1px 细描边(消除深底上纯色圆的塑料感)
+        ctx.globalAlpha = 0.78;
+        ctx.fillStyle = fill;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = isSelected ? SELECT_STROKE : NODE_STROKE;
+        ctx.lineWidth = isSelected ? 1.5 : 1;
         ctx.stroke();
       }
 
-      // Icon
-      ctx.font = `${Math.max(14, r * 0.7)}px serif`;
+      // 常显标签(hover/选中/邻居提亮;超长截断)
+      const labelText = n.label.length > 8 ? `${n.label.slice(0, 7)}…` : n.label;
+      ctx.font = `${LABEL_SIZE}px sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(n.icon, n.x, n.y - 1);
-
-      // Label
-      ctx.font = `11px sans-serif`;
-      ctx.fillStyle = isHovered ? '#fff' : '#cbd5e1';
-      ctx.fillText(n.label, n.x, n.y + r + 14);
+      ctx.fillStyle = isHovered || isSelected || isNeighbor ? LABEL_COLOR_ACTIVE : LABEL_COLOR;
+      ctx.fillText(labelText, n.x, n.y + r + 12);
     }
 
     animRef.current = requestAnimationFrame(simulate);
@@ -256,7 +281,7 @@ export default function KnowledgeGraph() {
       const n = nodesRef.current[i];
       const dx = x - n.x;
       const dy = y - n.y;
-      if (Math.sqrt(dx * dx + dy * dy) < n.radius + 5) return n;
+      if (Math.sqrt(dx * dx + dy * dy) < nodeR(n.type) + 4) return n;
     }
     return null;
   };
@@ -321,18 +346,22 @@ export default function KnowledgeGraph() {
 
       {/* Floating info panel */}
       {state.selectedNodeId && (
-        <div className="absolute top-3 left-3 backdrop-blur-md rounded-xl p-3 border border-white/10 text-white max-w-[200px]"
-          style={{ backgroundColor: 'rgba(15,23,42,0.8)' }}>
+        <div
+          className="absolute top-3 left-3 backdrop-blur-sm rounded-lg p-3 border border-white/10 max-w-[200px]"
+          style={{ backgroundColor: 'rgba(13,18,28,0.86)' }}
+        >
           {(() => {
             const node = nodesRef.current.find(n => n.id === state.selectedNodeId);
             if (!node) return null;
             return (
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">{node.icon}</span>
-                  <span className="font-medium text-sm">{node.label}</span>
+                  <span className="text-[10px] leading-4 text-[#98A2B3] border border-white/10 rounded-sm px-1">
+                    {node.type === 'school' ? '院校' : node.type === 'major' ? '专业' : node.type === 'career' ? '就业方向' : node.type === 'role' ? '角色' : node.type === 'user' ? '用户数据' : '系统'}
+                  </span>
+                  <span className="text-[12px] font-medium text-[#DCE2EA]">{node.label}</span>
                 </div>
-                <div className="text-xs text-slate-400">
+                <div className="text-[11px] text-[#98A2B3]">
                   类型: {node.type === 'school' ? '院校' : node.type === 'major' ? '专业' : node.type === 'career' ? '就业方向' : node.type === 'role' ? '角色' : node.type === 'user' ? '用户数据' : '系统'}
                 </div>
                 {node.type === 'school' && (
@@ -341,7 +370,7 @@ export default function KnowledgeGraph() {
                       dispatch({ type: 'SET_SELECTED_SCHOOL', payload: node.id });
                       dispatch({ type: 'SET_RIGHT_PANEL', payload: 'research' });
                     }}
-                    className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline"
+                    className="mt-2 text-[11px] text-[#7FA8D9] hover:text-[#A9C6EA] underline underline-offset-2 transition-colors duration-150"
                   >
                     查看深度研究 →
                   </button>
@@ -353,17 +382,19 @@ export default function KnowledgeGraph() {
       )}
 
       {/* Graph Context */}
-      <div className="absolute top-3 right-3 backdrop-blur-md rounded-xl p-3 border border-white/10 text-white max-w-[280px]"
-        style={{ backgroundColor: 'rgba(15,23,42,0.8)' }}>
-        <div className="text-xs font-medium text-slate-200 mb-1">图谱上下文</div>
-        <div className="text-[11px] text-slate-300 space-y-1">
+      <div
+        className="absolute top-3 right-3 backdrop-blur-sm rounded-lg p-3 border border-white/10 max-w-[280px]"
+        style={{ backgroundColor: 'rgba(13,18,28,0.86)' }}
+      >
+        <div className="text-[12px] font-medium text-[#DCE2EA] mb-1">图谱上下文</div>
+        <div className="text-[11px] text-[#98A2B3] space-y-1">
           <div>来源：{activeUpload?.fileName || '默认知识图谱'}</div>
           <div>文档ID：{activeUpload?.documentId || '—'}</div>
           <div>图谱ID：{activeUpload?.graphId || '—'}</div>
           <div>模式：{activeUpload?.graphMode || 'default'}</div>
           {state.recommendMeta && (
             <>
-              <div className="pt-1 text-slate-400">报告上下文</div>
+              <div className="pt-1 text-[#74808F]">报告上下文</div>
               <div>省份：{String(state.recommendMeta.profile.province ?? '—')}</div>
               <div>分数：{String(state.recommendMeta.profile.score ?? '—')}</div>
               <div>档位：{String(state.recommendMeta.profile.auto_tier ?? '—')}</div>
@@ -375,11 +406,11 @@ export default function KnowledgeGraph() {
       {/* Tooltip */}
       {tooltip && (
         <div
-          className="fixed pointer-events-none z-50 px-2 py-1 rounded-md text-xs text-white backdrop-blur-sm"
+          className="fixed pointer-events-none z-50 px-2 py-1 rounded-md text-[12px] text-[#DCE2EA] border border-white/10 backdrop-blur-sm"
           style={{
             left: tooltip.x,
             top: tooltip.y,
-            backgroundColor: 'rgba(15,23,42,0.85)',
+            backgroundColor: 'rgba(13,18,28,0.90)',
           }}
         >
           {tooltip.node.label}
@@ -387,13 +418,22 @@ export default function KnowledgeGraph() {
       )}
 
       {/* Legend */}
-      <div className="absolute bottom-3 left-3 backdrop-blur-md rounded-lg p-2 border border-white/10 text-white text-[10px]"
-        style={{ backgroundColor: 'rgba(15,23,42,0.8)' }}>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-blue-500" />专业</div>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-green-500" />院校</div>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-orange-500" />就业</div>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-2.5 h-2.5 rounded-full bg-purple-500" />角色</div>
-        <div className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500" />用户</div>
+      <div
+        className="absolute bottom-3 left-3 rounded-lg p-2.5 border border-white/10 flex flex-wrap gap-x-3 gap-y-1 max-w-[320px]"
+        style={{ backgroundColor: 'rgba(20,28,41,0.90)' }}
+      >
+        {[
+          ['#2E6DA4', '专业'],
+          ['#2F8A6B', '院校'],
+          ['#C05621', '就业'],
+          ['#7A5FA0', '角色'],
+          ['#D9A13B', '用户'],
+        ].map(([color, label]) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
+            <span className="text-[11px] leading-none text-[#98A2B3]">{label}</span>
+          </div>
+        ))}
       </div>
     </div>
   );

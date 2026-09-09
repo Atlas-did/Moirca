@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { motion } from 'framer-motion';
-import { Sparkles, Loader2, Clock3, RefreshCw } from 'lucide-react';
+import { Loader2, Clock3, RefreshCw, ListChecks } from 'lucide-react';
 import {
   getRecommendations,
   startAsyncRecommendation,
@@ -157,16 +157,16 @@ export default function ScoreInputBar() {
   };
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-50 to-cyan-50 border-b border-blue-100">
+    <div className="flex items-center gap-3 px-4 py-2.5 bg-card border-b border-border">
       {/* Score */}
       <div className="flex items-center gap-1.5">
-        <label className="text-xs font-medium text-slate-600 whitespace-nowrap">分数</label>
+        <label className="text-xs text-muted-foreground whitespace-nowrap">分数</label>
         <input
           type="number"
           value={score}
           onChange={e => setScore(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleGenerate()}
-          className="w-20 text-center border border-slate-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+          className="w-20 text-center tabular-nums border border-input bg-card text-foreground rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 transition-colors"
           placeholder="585"
           min={100}
           max={750}
@@ -175,11 +175,11 @@ export default function ScoreInputBar() {
 
       {/* Province */}
       <div className="flex items-center gap-1.5">
-        <label className="text-xs font-medium text-slate-600 whitespace-nowrap">省份</label>
+        <label className="text-xs text-muted-foreground whitespace-nowrap">省份</label>
         <select
           value={province}
           onChange={e => setProvince(e.target.value)}
-          className="border border-slate-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+          className="border border-input bg-card text-foreground rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 transition-colors"
         >
           {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
@@ -187,34 +187,30 @@ export default function ScoreInputBar() {
 
       {/* Keywords */}
       <div className="flex items-center gap-1.5 flex-1">
-        <label className="text-xs font-medium text-slate-600 whitespace-nowrap">偏好</label>
+        <label className="text-xs text-muted-foreground whitespace-nowrap">偏好</label>
         <input
           type="text"
           value={keywords}
           onChange={e => setKeywords(e.target.value)}
           placeholder="如: 编程, 人工智能 (可选)"
-          className="flex-1 border border-slate-300 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-blue-500"
+          className="flex-1 border border-input bg-card text-foreground placeholder:text-muted-foreground rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring/30 transition-colors"
         />
       </div>
 
       {/* Generate Button */}
       <div className="flex items-center gap-2 shrink-0">
         <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
           onClick={handleGenerate}
           disabled={loading || asyncLoading}
-          className="flex items-center gap-2 px-4 py-1.5 bg-blue-500 text-white rounded-lg text-sm font-medium hover:bg-blue-600 disabled:opacity-50 transition-all shadow-sm"
+          className="flex items-center gap-2 px-4 h-9 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors duration-150 shadow-xs"
         >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ListChecks className="w-4 h-4" />}
           同步推荐
         </motion.button>
         <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
           onClick={handleAsyncGenerate}
           disabled={loading || asyncLoading}
-          className="flex items-center gap-2 px-4 py-1.5 bg-slate-700 text-white rounded-lg text-sm font-medium hover:bg-slate-600 disabled:opacity-50 transition-all shadow-sm"
+          className="flex items-center gap-2 px-4 h-9 bg-secondary text-secondary-foreground border border-border rounded-md text-sm font-medium hover:bg-accent disabled:opacity-50 transition-colors duration-150"
         >
           {asyncLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
           后台推荐
@@ -223,20 +219,20 @@ export default function ScoreInputBar() {
 
       {(asyncLoading || asyncJobId) && (
         <div className="ml-2 min-w-[170px] flex-1">
-          <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-1">
             <span className="flex items-center gap-1"><Clock3 className="w-3 h-3" /> 异步进度</span>
-            <span>{asyncProgress}%</span>
+            <span className="tabular-nums">{asyncProgress}%</span>
           </div>
-          <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-            <div className="h-full bg-cyan-500 rounded-full transition-all" style={{ width: `${asyncProgress}%` }} />
+          <div className="w-full h-1 bg-border rounded-sm overflow-hidden">
+            <div className="h-full bg-primary rounded-sm transition-all" style={{ width: `${asyncProgress}%` }} />
           </div>
-          <div className="mt-1 text-[10px] text-slate-500 truncate" title={asyncMessage}>{asyncMessage || asyncJobId}</div>
+          <div className="mt-1 text-[11px] text-muted-foreground truncate" title={asyncMessage}>{asyncMessage || asyncJobId}</div>
         </div>
       )}
 
       {/* Error */}
       {error && (
-        <span className="text-xs text-red-500 shrink-0">{error}</span>
+        <span className="text-xs text-destructive shrink-0">{error}</span>
       )}
     </div>
   );

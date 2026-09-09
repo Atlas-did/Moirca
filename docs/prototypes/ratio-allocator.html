@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moirca · 比例调整交互原型</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:rgba(51,65,85,.30); --card2:rgba(51,65,85,.18);
+    --line:rgba(148,163,184,.14); --tx:#e2e8f0; --tx2:#94a3b8; --tx3:#64748b;
+    --blue:#60a5fa; --cyan:#22d3ee; --red:#f87171; --green:#4ade80; --amber:#fbbf24;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--tx);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+    font-size:14px; line-height:1.6; padding:40px 20px 80px;
+  }
+  .wrap{max-width:880px;margin:0 auto}
+  header{margin-bottom:28px}
+  header h1{font-size:22px;font-weight:600;letter-spacing:.5px}
+  header p{color:var(--tx2);font-size:13px;margin-top:4px}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:14px;
+    padding:22px 24px; margin-bottom:20px;
+  }
+  .card h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  .card h2 .tag{font-size:11px;color:var(--tx3);font-weight:400}
+  .card .sub{color:var(--tx2);font-size:12px;margin-bottom:16px}
+
+  /* ── 冲稳保 ─────────────────────────── */
+  .bar{
+    position:relative;height:44px;border-radius:10px;overflow:hidden;
+    display:flex;user-select:none;background:#1e293b;
+  }
+  .seg{position:relative;height:100%;transition:width .15s ease;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .seg .lab{font-size:12px;font-weight:600;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .seg.chong{background:linear-gradient(180deg,#ef6b6b,#dc5555)}
+  .seg.wen{background:linear-gradient(180deg,#4f8ef0,#3b74e0)}
+  .seg.bao{background:linear-gradient(180deg,#43c96b,#2fae57)}
+  .divider{
+    position:absolute;top:0;width:14px;height:100%;cursor:ew-resize;z-index:5;
+    transform:translateX(-7px);touch-action:none;
+  }
+  .divider::after{
+    content:"";position:absolute;left:6px;top:0;width:2px;height:100%;background:rgba(255,255,255,.85);
+    box-shadow:0 0 6px rgba(0,0,0,.4);transition:width .1s;
+  }
+  .divider:hover::after{width:4px;left:5px}
+  .stats{display:flex;gap:12px;margin-top:14px;flex-wrap:wrap}
+  .stat{
+    flex:1;min-width:150px;background:var(--card2);border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px;
+  }
+  .stat .k{font-size:12px;color:var(--tx2);display:flex;align-items:center;gap:6px}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .stat .v{font-size:22px;font-weight:600;margin-top:2px}
+  .stat .v small{font-size:12px;color:var(--tx2);font-weight:400;margin-left:4px}
+  .presets{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center}
+  .presets .pl{font-size:12px;color:var(--tx2);margin-right:2px}
+  .btn{
+    padding:6px 14px;border-radius:8px;border:1px solid var(--line);cursor:pointer;
+    background:rgba(96,165,250,.12);color:var(--blue);font-size:12px;transition:all .15s;
+    font-family:inherit;
+  }
+  .btn:hover{background:rgba(96,165,250,.22)}
+  .btn.ghost{background:transparent;color:var(--tx2)}
+  .btn.ghost:hover{color:var(--tx);background:var(--card2)}
+  .caprow{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:12px;color:var(--tx2)}
+  .caprow input[type=range]{flex:0 0 180px;accent-color:var(--blue)}
+  .warn{
+    display:none;margin-top:12px;padding:8px 12px;border-radius:8px;font-size:12px;
+    background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.30);color:var(--amber);
+  }
+  .warn.show{display:block}
+
+  /* ── 多校权重 ───────────────────────── */
+  .wbar{height:30px;border-radius:8px;overflow:hidden;display:flex;margin-bottom:16px;background:#1e293b}
+  .wbar .wseg{display:flex;align-items:center;justify-content:center;overflow:hidden;transition:width .15s ease;position:relative}
+  .wbar .wseg span{font-size:11px;font-weight:600;white-space:nowrap;color:rgba(255,255,255,.92);text-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .wrow{display:flex;align-items:center;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .wrow:last-child{border-bottom:none}
+  .wrow .name{flex:0 0 168px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:8px}
+  .wrow .name .dot{flex:0 0 8px}
+  .wrow input[type=range]{flex:1;accent-color:var(--cyan);height:4px}
+  .wrow .pct{flex:0 0 56px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .wrow .rm{
+    flex:0 0 22px;height:22px;border-radius:6px;border:none;cursor:pointer;line-height:1;
+    background:transparent;color:var(--tx3);font-size:15px;transition:all .15s;
+  }
+  .wrow .rm:hover{color:var(--red);background:rgba(248,113,113,.10)}
+  .addrow{display:flex;gap:8px;margin-top:14px;align-items:center}
+  .addrow input{
+    flex:0 0 220px;background:#1e293b;border:1px solid var(--line);border-radius:8px;
+    padding:6px 12px;color:var(--tx);font-size:12px;outline:none;font-family:inherit;
+  }
+  .addrow input:focus{border-color:var(--blue)}
+  .tools{display:flex;gap:8px;margin-left:auto}
+  .note{color:var(--tx3);font-size:12px;margin-top:16px;border-top:1px solid var(--line);padding-top:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Moirca · 比例调整交互原型</h1>
+    <p>冲稳保分配条 + 多校权重联动滑块 · 按现有暗色风格设计 · 数据均为演示用</p>
+  </header>
+
+  <!-- ═══ 冲稳保 ═══ -->
+  <div class="card">
+    <h2>冲稳保分配 <span class="tag">拖动分割线调整,或使用预设</span></h2>
+    <p class="sub">调整结果将作为推荐参数:比例决定三档分数差阈值,推荐列表按此生成 45 个志愿。</p>
+
+    <div class="bar" id="bar">
+      <div class="seg chong" id="segC"><span class="lab">冲</span></div>
+      <div class="seg wen" id="segW"><span class="lab">稳</span></div>
+      <div class="seg bao" id="segB"><span class="lab">保</span></div>
+      <div class="divider" id="dv1" style="left:30%"></div>
+      <div class="divider" id="dv2" style="left:70%"></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="k"><span class="dot" style="background:var(--red)"></span>冲(录取概率 15–70%)</div><div class="v" id="vC" style="color:var(--red)">30%<small>14 个</small></div></div>
+      <div class="stat"><div class="k"><span class="dot" style="background:var(--blue)"></span>稳(70–90%)</div><div class="v" id="vW" style="color:var(--blue)">40%<small>18 个</small></div></div>
+      <div class="stat"><div class="k"><span class="dot" style="background:var(--green)"></span>保(90%+)</div><div class="v" id="vB" style="color:var(--green)">30%<small>13 个</small></div></div>
+    </div>
+
+    <div class="presets">
+      <span class="pl">预设:</span>
+      <button class="btn" data-r="30,40,30">均衡 30/40/30</button>
+      <button class="btn" data-r="20,50,30">稳健 20/50/30</button>
+      <button class="btn" data-r="45,35,20">冲刺 45/35/20</button>
+    </div>
+
+    <div class="caprow">
+      <span>志愿容量</span>
+      <input type="range" id="cap" min="12" max="96" step="3" value="45">
+      <span id="capV">45 个</span>
+    </div>
+
+    <div class="warn" id="warn">⚠ 保底占比不足 15%:滑档风险偏高。建议保底至少留 3 个志愿兜底。</div>
+  </div>
+
+  <!-- ═══ 多校权重 ═══ -->
+  <div class="card">
+    <h2>多校权重分配 <span class="tag">拖任意一行,其余自动等比补偿,总和恒为 100%</span></h2>
+    <p class="sub">对收藏的候选院校分配偏好权重;加权分 = 录取概率分 × 权重,志愿表实时重排,无需重新推荐。</p>
+
+    <div class="wbar" id="wbar"></div>
+    <div id="wrows"></div>
+
+    <div class="addrow">
+      <input id="newName" placeholder="输入院校名,回车添加(如 华南理工大学)" maxlength="20">
+      <button class="btn" id="addBtn">＋ 添加院校</button>
+      <div class="tools">
+        <button class="btn ghost" id="evenBtn">平均分配</button>
+        <button class="btn ghost" id="resetBtn">恢复示例</button>
+      </div>
+    </div>
+
+    <div class="note">
+      交互约定:① 单行滑块范围 0–60%,防止单校权重过高;② 至少保留 2 所院校;
+      ③ 权重即时同步到志愿表排序与右上角堆叠色条。与 AHP 两两对比互补:日常用这里,深度对比进 AHP。
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════ 冲稳保三段分配条 ═══════════ */
+const bar=document.getElementById('bar'),dv1=document.getElementById('dv1'),dv2=document.getElementById('dv2');
+const segC=document.getElementById('segC'),segW=document.getElementById('segW'),segB=document.getElementById('segB');
+let cap=45, dragging=null;
+
+function renderCsb(){
+  let x1=parseFloat(dv1.style.left), x2=parseFloat(dv2.style.left);
+  if(x2-x1<8){ // 最小 8%,防止挤没
+    if(dragging===dv1) x1=x2-8; else x2=x1+8;
+    dv1.style.left=x1+'%'; dv2.style.left=x2+'%';
+  }
+  segC.style.width=x1+'%'; segW.style.width=(x2-x1)+'%'; segB.style.width=(100-x2)+'%';
+  const nC=Math.round(cap*x1/100), nB=Math.round(cap*(100-x2)/100), nW=cap-nC-nB;
+  document.getElementById('vC').innerHTML=x1.toFixed(0)+'%<small>'+nC+' 个</small>';
+  document.getElementById('vW').innerHTML=(x2-x1).toFixed(0)+'%<small>'+nW+' 个</small>';
+  document.getElementById('vB').innerHTML=(100-x2).toFixed(0)+'%<small>'+nB+' 个</small>';
+  document.getElementById('warn').classList.toggle('show',(100-x2)<15);
+}
+function capDrag(dv){
+  dv.addEventListener('pointerdown',e=>{
+    dragging=dv; dv.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+}
+capDrag(dv1); capDrag(dv2);
+bar.addEventListener('pointermove',e=>{
+  if(!dragging) return;
+  const r=bar.getBoundingClientRect();
+  dragging.style.left=Math.min(97,Math.max(3,(e.clientX-r.left)/r.width*100))+'%';
+  renderCsb();
+});
+bar.addEventListener('pointerup',()=>dragging=null);
+bar.addEventListener('pointercancel',()=>dragging=null);
+bar.addEventListener('click',e=>{ // 点空白处:就近分割线跳过去
+  if(e.target.closest('.divider'))return;
+  const r=bar.getBoundingClientRect(), x=(e.clientX-r.left)/r.width*100;
+  const d=Math.abs(x-parseFloat(dv1.style.left))<Math.abs(x-parseFloat(dv2.style.left))?dv1:dv2;
+  d.style.left=Math.min(97,Math.max(3,x))+'%'; renderCsb();
+});
+document.querySelectorAll('.presets .btn').forEach(b=>b.addEventListener('click',()=>{
+  const [a,c]=b.dataset.r.split(',').map(Number);
+  dv1.style.left=a+'%'; dv2.style.left=(a+c)+'%'; renderCsb();
+}));
+document.getElementById('cap').addEventListener('input',e=>{
+  cap=+e.target.value; document.getElementById('capV').textContent=cap+' 个'; renderCsb();
+});
+renderCsb();
+
+/* ═══════════ 多校权重联动滑块 ═══════════ */
+const PALETTE=['#60a5fa','#22d3ee','#a78bfa','#4ade80','#fbbf24','#f87171','#f472b6','#34d399'];
+const SAMPLE=[['中山大学',30],['华南理工大学',26],['暨南大学',22],['深圳大学',22]];
+let schools=SAMPLE.map(([name,w],i)=>({name,w,color:PALETTE[i%PALETTE.length]}));
+
+const wbar=document.getElementById('wbar'),wrows=document.getElementById('wrows');
+
+function largestRemainder(vals){ // 整数化且总和恒 100
+  const floors=vals.map(v=>Math.floor(v));
+  let rem=100-floors.reduce((a,b)=>a+b,0);
+  const order=vals.map((v,i)=>[v-floors[i],i]).sort((a,b)=>b[0]-a[0]);
+  for(let k=0;k<rem;k++) floors[order[k%order.length][1]]++;
+  return floors;
+}
+function normalize(others,restTotal){
+  const s=others.reduce((a,b)=>a+b,0);
+  if(s<=0) return others.map(()=>restTotal/others.length);
+  return others.map(v=>v*restTotal/s);
+}
+function renderSchools(){
+  wbar.innerHTML='';
+  const ints=largestRemainder(schools.map(s=>s.w));
+  schools.forEach((s,i)=>{
+    const seg=document.createElement('div');
+    seg.className='wseg'; seg.style.width=ints[i]+'%'; seg.style.background=s.color;
+    if(ints[i]>=7) seg.innerHTML='<span>'+s.name.slice(0,4)+' '+ints[i]+'%</span>';
+    wbar.appendChild(seg);
+  });
+  wrows.innerHTML='';
+  schools.forEach((s,i)=>{
+    const row=document.createElement('div'); row.className='wrow';
+    row.innerHTML=
+      '<div class="name"><span class="dot" style="background:'+s.color+'"></span>'+s.name+'</div>'+
+      '<input type="range" min="0" max="60" step="1" value="'+Math.round(s.w)+'">'+
+      '<div class="pct">'+ints[i]+'%</div>'+
+      '<button class="rm" title="移除">✕</button>';
+    const slider=row.querySelector('input');
+    slider.addEventListener('input',()=>{
+      const nv=+slider.value, old=schools[i].w;
+      if(nv===old){renderSchools();return;}
+      const restTotal=100-nv, oldRest=100-old;
+      const others=normalize(schools.filter((_,j)=>j!==i).map(x=>x.w),restTotal);
+      let k=0;
+      schools.forEach((x,j)=>{ if(j!==i) x.w=others[k++]; });
+      schools[i].w=nv;
+      renderSchools();
+    });
+    row.querySelector('.rm').addEventListener('click',()=>{
+      if(schools.length<=2)return;
+      schools.splice(i,1);
+      const scaled=normalize(schools.map(x=>x.w),100); // 其余等比归一到 100%
+      schools.forEach((x,j)=>x.w=scaled[j]);
+      renderSchools();
+    });
+    wrows.appendChild(row);
+  });
+}
+function addSchool(){
+  const inp=document.getElementById('newName');
+  const name=inp.value.trim();
+  if(!name||schools.length>=8)return;
+  // 新校从现有各校按比例匀 8%(不足则从最大者扣)
+  const take=Math.min(8,100/schools.length*0.5);
+  const others=normalize(schools.map(x=>x.w),100-take);
+  schools.forEach((x,j)=>x.w=others[j]);
+  schools.push({name,w:take,color:PALETTE[schools.length%PALETTE.length]});
+  inp.value=''; renderSchools();
+}
+document.getElementById('addBtn').addEventListener('click',addSchool);
+document.getElementById('newName').addEventListener('keydown',e=>{if(e.key==='Enter')addSchool();});
+document.getElementById('evenBtn').addEventListener('click',()=>{
+  schools.forEach(x=>x.w=100/schools.length); renderSchools();
+});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  schools=SAMPLE.map(([name,w],i)=>({name,w,color:PALETTE[i%PALETTE.length]})); renderSchools();
+});
+renderSchools();
+</script>
+</body>
+</html>

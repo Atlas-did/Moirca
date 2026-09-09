@@ -1,19 +1,79 @@
 {
-  "name": "shopping-assistant",
-  "description": "智能购物助手 - 对比价格、找优惠券、分析商品评价",
-  "version": "1.0.0",
-  "author": "Moirca",
-  "tools": ["browser_navigate", "browser_snapshot", "browser_screenshot", "browser_click"],
-  "workflows": {
-    "compare-prices": {
-      "description": "在多个电商平台对比同一商品价格",
-      "steps": [
-        { "action": "browser_navigate", "params": { "url": "https://search.jd.com/search?keyword={query}" } },
-        { "action": "browser_snapshot", "params": { "refs": true } },
-        { "action": "browser_navigate", "params": { "url": "https://s.taobao.com/search?q={query}" } },
-        { "action": "browser_snapshot", "params": { "refs": true } }
+  "name": "compare-prices",
+  "description": "多电商平台商品比价:每个平台开一个专用后台标签并行采集,汇总价格/评分/销量后给出推荐,采集结果落证据库。",
+  "version": "2.0.0",
+
+  "intents": [
+    {
+      "trigger_examples": [
+        "帮我对比一下京东和淘宝上 iPad Air 的价格",
+        "这三个平台哪个卖的机械键盘最便宜?",
+        "查查同一款耳机在几个电商的售价和销量,给我个推荐"
       ],
-      "analysis": "对比两个平台的价格、评分、销量，给出推荐"
+      "channel": "controlled_browse",
+      "effort": "medium",
+      "confidence_hint": 0.85
     }
-  }
+  ],
+
+  "strategy": {
+    "plan": {
+      "overview": "把'比价'拆为 N 个平台各一个专用后台标签的采集任务:先规划平台清单(由用户提到或澄清确认,不写死),逐平台 新建标签→打开该平台的商品搜索/详情→snapshot 定位→extract 抓结构化价格数据→核对→关闭;最后跨标签汇总对比并给出推荐。任何导航只发生在本 skill 自建的专用标签里。",
+      "phases": [
+        {
+          "phase": "1 规划与澄清",
+          "guidance": "从用户输入提取:商品名、平台清单、关注维度(价格/评分/销量/包邮/自营)。平台清单不写死:用户没点名平台时,按商品类目建议 2-3 个常见平台并请用户确认一次(原则 6,一次 1 问 + ≤4 选项 chips)。为每个平台记一条待采集项。",
+          "tools": []
+        },
+        {
+          "phase": "2 逐平台采集(每平台独立循环)",
+          "guidance": "browser_new_tab 建专用后台标签 → browser_navigate 到该平台搜索入口(URL 仅为 example,等价做法是打开平台首页后用 browser_fill+browser_press_key 在站内搜索框输入商品名)→ browser_snapshot(compact,digest 优先)→ browser_find_in_snapshot 定位商品条目或搜索框 ref → browser_extract(format=schema,按本 skill 的价格 schema 抽:平台/商品名/价格/月销/店铺/链接)→ 记录 evidence_id。同平台重试/翻页复用同一 tabId,不新开。",
+          "tools": ["browser_new_tab", "browser_navigate", "browser_fill", "browser_press_key", "browser_snapshot", "browser_find_in_snapshot", "browser_extract", "browser_scroll"]
+        },
+        {
+          "phase": "3 逐条验证",
+          "guidance": "每个平台的 extract 结果按 verification_rules 核对;价格字段缺失或明显异常(如个位数、含'起')时用 browser_find_in_snapshot 回查快照上下文,必要时 browser_snapshot(full) 降级人工口径。验证不过走 failure_recovery,不得拿未验证数字进对比结论。",
+          "tools": ["browser_find_in_snapshot", "browser_snapshot"]
+        },
+        {
+          "phase": "4 汇总与收尾",
+          "guidance": "跨平台对比:同 SKU 口径对齐(型号/配置/保修),输出表格 + 每个结论句附 [E:ev_xxx] 引用;提示运费/优惠券/自营差异等风险。browser_close_tab 逐个关闭本 skill 建的专用标签,绝不触碰用户当前标签。最终不做任何下单/加购动作(高危,见 SAFETY_LADDERS)。",
+          "tools": ["browser_close_tab"]
+        }
+      ],
+      "invariants": [
+        "绝不在用户当前标签 navigate/点击/滚动;所有多步操作只在本 skill 新建的专用标签(target=newTab/tabId:N)进行",
+        "每个平台的价格数据必须来自该平台自己专用标签的 snapshot/extract 回读,不得凭记忆或猜测填数",
+        "每个结论句必须带 [E:ev_xxx] 证据引用;无证据的对比句不得输出",
+        "不执行加购、下单、支付、领券等写高危动作;用户明说要买时也只提示需人工确认(SAFETY_LADDERS L3)"
+      ]
+    },
+    "verification_rules": [
+      { "after": "browser_navigate", "check": "result.finalUrl 与目标域名一致且非错误页/验证码页;再 snapshot 确认页面标题含平台或商品关键词" },
+      { "after": "browser_fill + browser_press_key(站内搜索)", "check": "press_key 后 browser_snapshot 回读,确认结果列表出现(条目数>0 或出现'共 N 件'类文案 delta)" },
+      { "after": "browser_extract", "check": "data 中价格字段可解析为数字、商品名与目标 SKU 匹配(编辑距离/关键词包含);缺失字段数 ≤1,否则视为本次采集失败" },
+      { "after": "browser_click(进入商品详情)", "check": "URL/标题发生变化(delta 回读)且详情页出现价格元素;expectNavigation=true 等 load" }
+    ],
+    "failure_recovery": [
+      { "condition": "反爬拦截/滑块验证/验证码页", "action": "识别后立即停止该平台采集(不尝试绕过),换下一平台继续;汇总时如实标注'某平台被拦截,无数据';连续 2 个平台被拦则中止并说明" },
+      { "condition": "登录墙挡住价格/详情", "action": "不在本 skill 内登录(登录属 L2 高危,须用户显式确认且走受控浏览单独流程);改为采集无需登录的公开价格口径,或提示用户登录后重试" },
+      { "condition": "SPA 未加载完成/搜索结果为空", "action": "browser_wait(until=selector,'结果列表'类选择器,15s)→ 重验;仍空则 browser_wait(networkidle) 后再 snapshot 一次;两次为空按'该平台无此商品'记录,不静默跳过" },
+      { "condition": "元素未出现/REF_STALE(页面重渲染导致 ref 失效)", "action": "重新 browser_snapshot 取新 ref 后重试同一动作,最多 2 次;仍失败则该条采集标记失败并说明,不盲点旧 ref" },
+      { "condition": "页面加载超时(NAV_TIMEOUT)", "action": "browser_wait(until=time,3000) 后重试 navigate 1 次;再失败放弃该平台,标注原因" },
+      { "condition": "extract 抽取失败或价格为'起价/区间'", "action": "回 browser_snapshot(full) 用文本口径人工比对,quote 记录原文片段;仍无法确定则标注'价格不确定',不编造数字" }
+    ],
+    "safety": {
+      "write_level": "low",
+      "targets_allowed": ["newTab"]
+    }
+  },
+
+  "evidence_policy": {
+    "save": true,
+    "channel_hint": "controlled_browse",
+    "fields": ["url", "title", "quote", "locator", "source_quality", "task_id", "raw_ref"],
+    "source_quality_hint": "community"
+  },
+
+  "tools": ["browser_new_tab", "browser_navigate", "browser_close_tab", "browser_snapshot", "browser_find_in_snapshot", "browser_fill", "browser_press_key", "browser_click", "browser_scroll", "browser_extract", "browser_wait", "browser_screenshot"]
 }

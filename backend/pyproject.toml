@@ -1,0 +1,20 @@
+[tool.ruff]
+# WebBridge backend lint 配置(AGENT_07)。
+# 选取「错误级 + 导入排序」规则集:E4/E7/E9(pycodestyle 错误类)+ F(pyflakes)+ I(isort)。
+# 不启用风格重构类规则(UP/DTZ/BLE/SIM 等)——legacy 代码按 ARCHITECTURE §5.5「保留不重写」,
+# 全量风格迁移不属于审计范围且会引入无意义 diff。
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py 的再导出(F401)是有意为之的公共 API 聚合
+"**/__init__.py" = ["F401"]
+# 兼容层:仅再导出 app/evidence 真源,导入即用途(文件头有说明)
+"app/api/evidence.py" = ["F401"]
+
+[tool.ruff.format]
+# 不做全仓格式化:保持 legacy 代码 diff 最小化
+quote-style = "preserve"

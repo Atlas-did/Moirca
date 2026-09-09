@@ -1,0 +1,66 @@
+{
+  "name": "ask-on-page",
+  "description": "当前页只读问答(通道②):对用户正在看的页面/选中文字做零写动作的快照问答,不落库、不开标签、不切换。",
+  "version": "2.0.0",
+
+  "intents": [
+    {
+      "trigger_examples": [
+        "这个页面在讲什么?",
+        "选中这段,给我解释一下",
+        "这页的价格是含税的吗?",
+        "帮我看下这页报名条件里关于年龄的要求"
+      ],
+      "channel": "page_qa",
+      "effort": "low",
+      "confidence_hint": 0.9
+    }
+  ],
+
+  "strategy": {
+    "plan": {
+      "overview": "本 skill 是'当前页只读'的最小形态:一切认知材料来自对用户当前页的只读快照与选区文字,回答后不留任何痕迹。没有专用标签形态——一旦需要开标签/点击/滚动,即超出本 skill,应路由到其他 skill(如 digest-page / structured-table)。",
+      "phases": [
+        {
+          "phase": "1 取材",
+          "guidance": "has_selection=true 时以 selected_text 为核心上下文,辅以页面主题;否则 browser_snapshot(activeTab,compact)取当前页只读快照,digest 优先,truncated 时按 fileRef 读旁路文件补齐。readonly 构建下无 ref,一律文本口径。",
+          "tools": ["browser_snapshot"]
+        },
+        {
+          "phase": "2 作答",
+          "guidance": "先给直接答案,再给页面原文依据(短引用);页面未覆盖的子问题明确标注'本页未提及';用户追问页面之外的知识时不主动开浏览,提示可换通道(①秒答自答或③深研)。",
+          "tools": []
+        }
+      ],
+      "invariants": [
+        "零写动作:不开标签、不导航、不点击、不填表、不滚动、不切换标签",
+        "不落库:通道②按 CONTRACT §c.3 不写证据库,回答不引用 evidence_id",
+        "回答只依据快照/选区原文;页面没有的不编造,标注'本页未提及'",
+        "回答注明依据的快照(页面标题);快照过期(用户已切页)时先重新快照再答"
+      ]
+    },
+    "verification_rules": [
+      { "after": "browser_snapshot(activeTab)", "check": "返回 title/url 与用户所指页面一致;totalChars>0;truncated=true 时确认已按 fileRef 补读或已告知用户上下文不全" },
+      { "after": "作答", "check": "每个事实句能在快照文本中找到依据(子串/同义定位);找不到依据的句子删除或改标'本页未提及'" }
+    ],
+    "failure_recovery": [
+      { "condition": "快照为空或明显是错误页", "action": "重取一次 snapshot;仍失败则告知用户当前页无法读取,请刷新后重试;不猜测页面内容" },
+      { "condition": "上下文截断(truncated=true)且问题涉及被截断部分", "action": "读 fileRef 旁路文件补齐相关段落;readonly 无法处理时如实说明'答案可能不完整',请用户选中相关文字再问" },
+      { "condition": "用户要求需要写动作的事(帮我在这个页面点报名)", "action": "明确说明本 skill 只读不写,建议改走受控浏览流程(将触发写确认);不擅自升级执行" },
+      { "condition": "readonly 构建收到需要 ref 的追问", "action": "说明 readonly 快照无 ref,改为文本定位描述('页面中部第 3 个表格');需要元素操作请切换 pro 构建" }
+    ],
+    "safety": {
+      "write_level": "readonly",
+      "targets_allowed": ["activeTab"]
+    }
+  },
+
+  "evidence_policy": {
+    "save": false,
+    "channel_hint": "page_qa",
+    "fields": [],
+    "source_quality_hint": "unknown"
+  },
+
+  "tools": ["browser_snapshot"]
+}

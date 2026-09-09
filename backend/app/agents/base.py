@@ -10,9 +10,9 @@ Agent 基类
   - 输出标准化：统一返回 AgentOutput
 """
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import List, Optional, Dict
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..utils.llm_client import LLMClient
 from ..utils.logger import get_logger
@@ -29,6 +29,9 @@ class AgentContext:
     official_data: Dict = None          # 官方分数线等
     knowledge_graph: any = None         # NetworkX 图引用
     post_times: List[datetime] = None   # 帖子真实发布时间（驱动时效衰减 freshness_date）
+    # 证据链(CONTRACT §c,AGENT_05 接入):本任务采集到的证据记录(完整 row 字典),
+    # Agent 输出只引用其 evidence_id(evidence_refs 外键),不复制 quote。
+    evidence_records: List[Dict[str, Any]] = None
 
     def __post_init__(self):
         if self.kkdaxue_posts is None:
@@ -37,6 +40,69 @@ class AgentContext:
             self.official_data = {}
         if self.post_times is None:
             self.post_times = []
+        if self.evidence_records is None:
+            self.evidence_records = []
+
+    @property
+    def evidence_refs(self) -> List[str]:
+        """本上下文全部证据的 evidence_id(保序去重)。"""
+        seen, out = set(), []
+        for ev in self.evidence_records or []:
+            eid = ev.get("evidence_id") if isinstance(ev, dict) else None
+            if eid and eid not in seen:
+                seen.add(eid)
+                out.append(eid)
+        return out
+
+
+def _to_datetime(value: Any) -> Optional[datetime]:
+    """宽容解析时间戳(datetime 直通 / ISO8601 字符串),失败返回 None。"""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            return datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+def latest_real_timestamp(ctx: "AgentContext") -> Optional[datetime]:
+    """取上下文中真实数据时间戳的最新值;没有则返回 None(「时间未知」)。
+
+    来源优先级:official_data.fetched_at / official_data.data_times(官方数据采集时刻)
+    > post_times(社区帖子真实发布时间)。
+    返回值统一转为 naive 本地时间,便于与 datetime.now() 计算衰减。
+    绝不返回 datetime.now() 兜底——伪造新鲜是 freshness 修复要消灭的债务。
+    """
+    candidates: List[datetime] = []
+    official = ctx.official_data or {}
+    for raw in ([official.get("fetched_at")] if official.get("fetched_at") else []) \
+            + list(official.get("data_times") or []):
+        dt = _to_datetime(raw)
+        if dt is not None:
+            candidates.append(dt)
+    for t in (ctx.post_times or []):
+        dt = _to_datetime(t)
+        if dt is not None:
+            candidates.append(dt)
+    if not candidates:
+        return None
+    newest = max(candidates)
+    if newest.tzinfo is not None:
+        newest = newest.astimezone().replace(tzinfo=None)
+    return newest
+
+
+UNKNOWN_TIME_MARK = "【时间未知】"
+
+
+def freshness_with_marker(ctx: "AgentContext") -> Tuple[Optional[datetime], str]:
+    """返回 (真实时间戳或None, notes后缀)。无真实时间戳时显式标注「时间未知」。"""
+    ts = latest_real_timestamp(ctx)
+    if ts is not None:
+        return ts, ""
+    return None, f"{UNKNOWN_TIME_MARK}上下文无真实数据时间戳,不伪装新鲜(时效衰减按中性0.5处理)"
 
 
 class BaseAgent(ABC):
@@ -84,10 +150,17 @@ class BaseAgent(ABC):
         """
         if self.llm:
             try:
-                return self._research_with_llm(ctx)
+                output = self._research_with_llm(ctx)
             except Exception as e:
                 self.logger.warning(f"LLM调用失败，降级为规则评分: {e}")
-        return self._research_fallback(ctx)
+                output = self._research_fallback(ctx)
+        else:
+            output = self._research_fallback(ctx)
+        # 证据链传播(CONTRACT §c.2,AGENT_05):输出结构统一携带 evidence_refs 外键。
+        # LLM/降级两条路径都不改各自实现,在此处统一注入,保证传播不因降级丢失。
+        if not output.evidence_refs:
+            output.evidence_refs = list(ctx.evidence_refs)
+        return output
 
     def research_batch(self, contexts: List[AgentContext]) -> List[AgentOutput]:
         """批量调研（串行，后续可改为并行）"""

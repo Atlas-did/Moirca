@@ -3,7 +3,8 @@ LLM客户端封装（继承自MiroFish，保留OpenAI统一格式调用）
 """
 import json
 import re
-from typing import Optional, Dict, Any, List, Iterator
+from typing import Any, Dict, Iterator, List, Optional
+
 from openai import OpenAI
 
 from ..config import Config

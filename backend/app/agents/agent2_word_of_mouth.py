@@ -5,15 +5,14 @@ Agent 2: 口碑矿工（Word of Mouth Miner）
 分析维度: 学生满意度、课程质量、实习机会、转专业难度、隐形门槛
 """
 from datetime import datetime
-from ..utils.llm_client import LLMClient
-from .base import BaseAgent, AgentContext
+
+from ..utils.untrusted import UNTRUSTED_NOTICE
 from .agent6_fusion_alchemist import AgentOutput
-
-
+from .base import AgentContext, BaseAgent, freshness_with_marker
 
 
 def _latest_post_time(ctx: AgentContext):
-    """取帖子真实发布时间的最新值；解析失败/缺失时返回 None（由调用方回退到 now）。"""
+    """取帖子真实发布时间的最新值;解析失败/缺失时返回 None(调用方显式标「时间未知」,不伪装新鲜)。"""
     times = []
     for t in (ctx.post_times or []):
         if isinstance(t, datetime):
@@ -39,7 +38,7 @@ class Agent2WordOfMouth(BaseAgent):
         return "口碑矿工"
 
     def _system_prompt(self) -> str:
-        return """你是一位社区舆情分析师，专门从知乎、B站、小红书、百度贴吧等平台收集学生对专业的真实评价。
+        return UNTRUSTED_NOTICE + "\n\n" + """你是一位社区舆情分析师，专门从知乎、B站、小红书、百度贴吧等平台收集学生对专业的真实评价。
 
 你的分析必须基于以下原则:
 1. 注意幸存者偏差: 愿意发声的多是极端体验（特别好或特别差），中间多数沉默
@@ -80,14 +79,17 @@ class Agent2WordOfMouth(BaseAgent):
 请综合评估该专业在社区中的口碑，关注: 课程质量、师资水平、实习机会、转专业难度、真实就业情况。"""
 
     def _parse_response(self, response: dict, ctx: AgentContext) -> AgentOutput:
+        # freshness 修复:只认社区帖子自带的真实时间戳;无则显式「时间未知」,不伪装新鲜。
+        ts, unknown_mark = freshness_with_marker(ctx)
+        notes = response.get("common_praise", response.get("sentiment", ""))
         return AgentOutput(
             agent_name=self.agent_name,
             profession_code=ctx.profession.code,
             raw_score=float(response.get("raw_score", 65)),
             confidence=float(response.get("confidence", 0.65)),
-            freshness_date=_latest_post_time(ctx) or datetime.now(),
+            freshness_date=ts if ts else _latest_post_time(ctx),
             source_count=len(ctx.kkdaxue_posts) or 3,
-            notes=response.get("common_praise", response.get("sentiment", "")),
+            notes=f"{unknown_mark}{notes}" if unknown_mark else notes,
         )
 
     def _research_fallback(self, ctx: AgentContext) -> AgentOutput:
@@ -107,12 +109,13 @@ class Agent2WordOfMouth(BaseAgent):
                 score = 40 + 50 * (pos / total)
             notes = f"基于{len(ctx.kkdaxue_posts)}条社区反馈估算，正面词{pos}/负面词{neg}"
 
+        ts, unknown_mark = freshness_with_marker(ctx)
         return AgentOutput(
             agent_name=self.agent_name,
             profession_code=prof.code,
             raw_score=min(100, round(score, 1)),
             confidence=0.55 if not ctx.kkdaxue_posts else 0.65,
-            freshness_date=_latest_post_time(ctx) or datetime.now(),
+            freshness_date=ts if ts else _latest_post_time(ctx),
             source_count=len(ctx.kkdaxue_posts) or 1,
-            notes=notes,
+            notes=f"{unknown_mark}{notes}" if unknown_mark else notes,
         )

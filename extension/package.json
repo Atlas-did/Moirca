@@ -1,17 +1,24 @@
 {
-  "name": "moirca-webbridge-extension",
-  "version": "1.0.0",
+  "name": "webbridge-extension",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
+  "description": "WebBridge Chrome 扩展(MV3,双模式:readonly 最小权限 / pro CDP 全权)",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build:readonly": "vite build --mode readonly",
+    "build:pro": "vite build --mode pro",
+    "build": "npm run build:readonly && npm run build:pro",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@webbridge/shared-types": "file:../shared-types"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.287",
+    "@types/node": "^20.19.43",
+    "tsx": "^4.19.0",
     "typescript": "^5.5.0",
-    "vite": "^5.4.0",
-    "vite-plugin-web-extension": "^4.1.0"
+    "vite": "^5.4.0"
   }
 }

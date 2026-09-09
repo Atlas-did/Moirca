@@ -1,0 +1,73 @@
+{
+  "name": "verify-claims",
+  "description": "核实一条陈述:围绕待核陈述规划查证维度,多来源交叉检索(优先官方/权威来源),输出 支持/反驳/证据不足 的裁定与逐条证据引用,全程落证据库。",
+  "version": "2.0.0",
+
+  "intents": [
+    {
+      "trigger_examples": [
+        "网上说今年志愿填报截止时间是 7 月 1 日,帮我核实一下",
+        "核实这个说法:某校今年新增了人工智能专业",
+        "'每天喝柠檬水能溶解结石'这个说法是真的吗?查证一下"
+      ],
+      "channel": "deep_research",
+      "effort": "high",
+      "confidence_hint": 0.8
+    }
+  ],
+
+  "strategy": {
+    "plan": {
+      "overview": "把'核实一条陈述'拆为:陈述结构化(可验证的原子命题)→ 查证维度规划(谁是最有资格的发布方)→ 每维度一个专用标签多源检索 → 每源 extract 取原文证据并落库 → 交叉比对给出裁定。证据分级取向:官方原文 > 权威机构转载 > 媒体报道 > 社区帖子;裁定只能由证据支撑,不能由'多数来源这么说'替代对原文的核对。",
+      "phases": [
+        {
+          "phase": "1 陈述结构化",
+          "guidance": "把用户陈述改写成可判真伪的原子命题(主体/行为/时间/数值),列出:该命题若为真,官方发布方是谁;有哪些可独立核对的维度(原文出处、时间、数值、矛盾陈述)。不确定待核对象时一次澄清(≤4 选项)。",
+          "tools": []
+        },
+        {
+          "phase": "2 逐源检索采集(每源独立专用标签)",
+          "guidance": "按维度排序:官方/权威来源优先(browser_new_tab → browser_navigate,URL 仅 example,等价做法是打开该机构站内检索用 browser_fill + browser_press_key 搜关键词)→ browser_snapshot 读 digest → browser_find_in_snapshot 定位关键句 → browser_extract(markdown,schema 可选)取原文段落并自动落库。每个来源独立标签,互不复用;媒体/社区来源作为旁证补充采集。",
+          "tools": ["browser_new_tab", "browser_navigate", "browser_fill", "browser_press_key", "browser_snapshot", "browser_find_in_snapshot", "browser_extract", "browser_scroll", "browser_wait"]
+        },
+        {
+          "phase": "3 交叉核对与裁定",
+          "guidance": "逐维度比对各源原文:数值是否一致、时间是否一致、出处是否指向同一原始文档。输出三选一裁定:支持(≥1 个官方/权威原文直接支持)、反驳(≥1 个官方原文直接否定,且解释冲突来源)、证据不足(只有二手转述或来源互相矛盾)。每个裁定句附 [E:ev_xxx],并给出'哪条证据最关键'。",
+          "tools": ["browser_find_in_snapshot"]
+        }
+      ],
+      "invariants": [
+        "一切检索与采集在专用后台标签进行,绝不占用/导航用户当前标签",
+        "quote 必须是来源页面原文,转述/翻译不得写入 quote;裁定不得引用无 quote 支撑的结论",
+        "证据不足时如实裁定'证据不足',不倾向性收尾(原则 7 的核实版:不编造确定性)",
+        "遇到官方来源与媒体来源冲突,以官方原文为准并在结论中说明冲突本身"
+      ]
+    },
+    "verification_rules": [
+      { "after": "browser_navigate", "check": "finalUrl 域名与目标来源一致、非仿冒/镜像站(官方域名清单在采集前先记下),非验证码/错误页" },
+      { "after": "browser_extract", "check": "content 含与原子命题直接相关的关键词句(关键词命中 ≥1);每条关键证据能定位到 quote 原句" },
+      { "after": "落库", "check": "每条 evidence_id 有效、quote 非空、source_quality 按来源类型正确标注(官方域名→official,机构/学术→authoritative,媒体→community,论坛帖→unknown)" },
+      { "after": "裁定输出", "check": "裁定句中每个事实断言都能映射到至少一个 evidence_id;映射不上的断言删除或改写为'待核实'" }
+    ],
+    "failure_recovery": [
+      { "condition": "官方源被反爬/登录墙拦截", "action": "不绕过;改用该机构的权威转载渠道(如官方公众号镜像、政府门户转载页)并降低 source_quality 标注;仍不可得则该维度记'官方原文不可达',不得用媒体转述冒充官方" },
+      { "condition": "搜索结果页均为内容农场/低质转载", "action": "browser_wait(networkidle) 后换官方站内检索路径重试 1 次;仍无则裁定'证据不足',列出已查维度" },
+      { "condition": "REF_STALE / SPA 未加载", "action": "重新 snapshot 取新 ref;browser_wait(until=selector) 等关键区块出现,两次失败则跳过该源并说明" },
+      { "condition": "同一事实两个'官方'来源冲突", "action": "核对其发布主体层级与时间戳,采时间更新、层级更高者,并把冲突原文两条证据都落库,在裁定中如实呈现冲突" },
+      { "condition": "页面加载超时", "action": "重试 navigate 1 次(等 3s);再失败放弃该源,汇总时说明哪些维度未覆盖" }
+    ],
+    "safety": {
+      "write_level": "low",
+      "targets_allowed": ["newTab"]
+    }
+  },
+
+  "evidence_policy": {
+    "save": true,
+    "channel_hint": "deep_research",
+    "fields": ["url", "title", "quote", "locator", "source_quality", "task_id", "raw_ref"],
+    "source_quality_hint": "authoritative"
+  },
+
+  "tools": ["browser_new_tab", "browser_navigate", "browser_close_tab", "browser_snapshot", "browser_find_in_snapshot", "browser_fill", "browser_press_key", "browser_scroll", "browser_extract", "browser_wait", "browser_screenshot"]
+}

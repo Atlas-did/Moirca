@@ -5,8 +5,9 @@ Agent 6 融合炼金术士 Demo
 
 运行: python scripts/demo_fusion.py
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 if sys.platform == 'win32':
@@ -15,9 +16,11 @@ if sys.platform == 'win32':
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from datetime import datetime, timedelta
-from typing import List
+
 from app.agents.agent6_fusion_alchemist import (
-    FusionAlchemist, UserConfig, TierLabel, AgentOutput,
+    AgentOutput,
+    FusionAlchemist,
+    UserConfig,
 )
 from app.services.graph_service import KnowledgeGraph
 
@@ -130,7 +133,7 @@ def demo_user_preferences():
     alchemist = FusionAlchemist(user_config=user_config)
     results = alchemist.fuse(all_outputs, features)
 
-    print(f"\n  用户画像: 普通家庭 | 偏好编程 | 优先就业 | 排除医学")
+    print("\n  用户画像: 普通家庭 | 偏好编程 | 优先就业 | 排除医学")
     print(f"\n{'排名':<4} {'专业名称':<22} {'最终分':<8} {'叙事匹配':<10} {'张雪峰':<8} {'等级':<20} {'冲稳保'}")
     print("-" * 90)
     for r in results:
@@ -178,7 +181,6 @@ def demo_conflict_detection():
     print_separator("演示4: Agent评分冲突检测")
 
     alchemist = FusionAlchemist()
-    graph = KnowledgeGraph.build_default()
 
     from app.agents.agent6_fusion_alchemist import AgentOutput
 
@@ -192,7 +194,7 @@ def demo_conflict_detection():
         AgentOutput("趋势先知", "080901", 75, 0.7, now),
     ]
     sev, desc = alchemist.detect_conflict(high_conflict)
-    print(f"\n  高冲突场景: 官方85 vs 口碑30 (分歧55分)")
+    print("\n  高冲突场景: 官方85 vs 口碑30 (分歧55分)")
     print(f"  检测结果: severity={sev}, desc='{desc}'")
     cal = alchemist.confidence_calibration(high_conflict, sev)
     print(f"  置信度校准: {cal:.3f} (受冲突惩罚+多样性奖励影响)")
@@ -207,7 +209,7 @@ def demo_conflict_detection():
     ]
     sev2, desc2 = alchemist.detect_conflict(low_conflict)
     cal2 = alchemist.confidence_calibration(low_conflict, sev2)
-    print(f"\n  低冲突场景: 各Agent评分接近 (70-78)")
+    print("\n  低冲突场景: 各Agent评分接近 (70-78)")
     print(f"  检测结果: severity={sev2}, desc='{desc2}'")
     print(f"  置信度校准: {cal2:.3f}")
 

@@ -1,0 +1,73 @@
+{
+  "name": "structured-table",
+  "description": "按用户给定的 JSON Schema 从网页抽取结构化表格/列表数据(行×列),逐单元格回验,结果落证据库并输出机器可读 JSON。",
+  "version": "2.0.0",
+
+  "intents": [
+    {
+      "trigger_examples": [
+        "把这页的院校录取分数表格抽成 JSON",
+        "按这个 schema 把列表页里的商品数据都抓下来",
+        "把帖子楼层的回复整理成表格,要作者/时间/内容三列"
+      ],
+      "channel": "controlled_browse",
+      "effort": "medium",
+      "confidence_hint": 0.8
+    }
+  ],
+
+  "strategy": {
+    "plan": {
+      "overview": "目标页已知 URL 时开专用后台标签打开;目标即用户当前页时只做只读抽取。核心动作是 browser_extract(format=schema):把用户的列需求编译成 JSON Schema,抽完逐字段回验(行数、必填列、类型),不合格的字段级重抽,绝不输出夹空的半成品。",
+      "phases": [
+        {
+          "phase": "1 schema 编译",
+          "guidance": "把用户口述的列需求(如'作者/时间/内容')编译成 JSON Schema:object + rows 数组,每列定 type(string/number/date)与 required;数值列禁止混入单位文本。用户没给列清单时,先 snapshot 看表格实际结构,提议列清单请用户确认一次(原则 6)。",
+          "tools": ["browser_snapshot"]
+        },
+        {
+          "phase": "2 定位与抽取",
+          "guidance": "browser_new_tab(目标不在当前页时)→ browser_navigate(URL 仅 example)→ browser_snapshot(compact)找表格容器 → browser_extract(format=schema,schema=第 1 步产物,selector 限定表格根容器)。分页表格:逐页 extract 后合并,翻页在专用标签内进行。",
+          "tools": ["browser_new_tab", "browser_navigate", "browser_snapshot", "browser_find_in_snapshot", "browser_extract", "browser_scroll", "browser_wait", "browser_click"]
+        },
+        {
+          "phase": "3 字段级回验",
+          "guidance": "按 verification_rules 逐列核对;类型不符/空值超阈值时:用 browser_find_in_snapshot 回查快照原文本,以快照口径修补该单元格;整行无法修补则丢弃该行并在结果里注明丢弃行数,不猜值填充。",
+          "tools": ["browser_find_in_snapshot", "browser_snapshot"]
+        }
+      ],
+      "invariants": [
+        "目标不在当前页时一切动作走专用后台标签;目标是当前页时只读 extract/snapshot,不滚动不点击",
+        "抽取结果必须全部来自页面原文回读;缺失单元格输出 null,禁止推测填充",
+        "翻页/滚动只在专用标签内;绝不 navigate 用户当前页",
+        "分页采集要记录每页的 evidence_id,合并表在元信息里逐页列出可追溯"
+      ]
+    },
+    "verification_rules": [
+      { "after": "browser_navigate", "check": "finalUrl 与目标一致,快照中出现表头/列表容器关键词" },
+      { "after": "browser_extract(format=schema)", "check": "data.rows 非空且行数与快照可见行数一致(±分页口径);required 列空值率 = 0;类型列 100% 通过 JSON Schema 校验(数字列无单位混入、日期列可解析)" },
+      { "after": "翻页后每页 extract", "check": "相邻页无重复主键行(以首列为主键去重);总行数 = 各页之和" },
+      { "after": "落库", "check": "每页数据对应 evidence_id 有效;输出 JSON 顶部元信息含来源 url、抽取时间、页数、丢弃行数" }
+    ],
+    "failure_recovery": [
+      { "condition": "表格为 JS 动态渲染,首抽为空", "action": "browser_wait(until=selector,表格容器选择器,15s)→ 重抽;仍空改 browser_wait(networkidle) 再抽;两轮失败则 snapshot 文本口径降级输出(标注'非 schema 口径')" },
+      { "condition": "schema 抽出的数值列混入'¥'/'万'等单位", "action": "在 schema 的 description 中显式声明'纯数字,不含货币符号与单位'重抽 1 次;仍失败则保留原文列并另附纯数值列,两列都给出" },
+      { "condition": "分页元素 ref 失效(REF_STALE)", "action": "重新 snapshot 取新 ref 再点;重试 ≤2 次;翻不动时以已采页数为准并注明'未覆盖后续页'" },
+      { "condition": "单元格跨行合并/表头多层", "action": "改用 snapshot 文本口径逐行解析;能解析几行算几行,丢弃行数如实统计" },
+      { "condition": "登录墙后才有全量数据", "action": "只采公开可见部分并注明覆盖率;不登录、不绕过(登录属 L2)" }
+    ],
+    "safety": {
+      "write_level": "low",
+      "targets_allowed": ["newTab", "activeTab"]
+    }
+  },
+
+  "evidence_policy": {
+    "save": true,
+    "channel_hint": "controlled_browse",
+    "fields": ["url", "title", "quote", "locator", "source_quality", "task_id", "raw_ref"],
+    "source_quality_hint": "unknown"
+  },
+
+  "tools": ["browser_new_tab", "browser_navigate", "browser_close_tab", "browser_snapshot", "browser_find_in_snapshot", "browser_extract", "browser_click", "browser_scroll", "browser_wait"]
+}

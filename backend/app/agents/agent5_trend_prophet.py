@@ -4,10 +4,8 @@ Agent 5: 趋势先知（Trend Prophet）
 职责: 就业倒推分析 + 政策趋势预测 + 张雪峰决策框架融入
 分析维度: 就业市场中位数、产业政策方向、技术替代风险、家庭背景适配
 """
-from datetime import datetime
-from ..utils.llm_client import LLMClient
-from .base import BaseAgent, AgentContext
 from .agent6_fusion_alchemist import AgentOutput
+from .base import AgentContext, BaseAgent, freshness_with_marker
 
 
 class Agent5TrendProphet(BaseAgent):
@@ -69,14 +67,17 @@ class Agent5TrendProphet(BaseAgent):
 4. 5年趋势: 未来5年该专业的就业前景变化"""
 
     def _parse_response(self, response: dict, ctx: AgentContext) -> AgentOutput:
+        # freshness 修复:只认就业/政策数据自带的真实时间戳;无则显式「时间未知」。
+        ts, unknown_mark = freshness_with_marker(ctx)
+        notes = response.get("career_outlook", response.get("family_advice", ""))
         return AgentOutput(
             agent_name=self.agent_name,
             profession_code=ctx.profession.code,
             raw_score=float(response.get("raw_score", 70)),
             confidence=float(response.get("confidence", 0.70)),
-            freshness_date=datetime.now(),
+            freshness_date=ts,
             source_count=3,
-            notes=response.get("career_outlook", response.get("family_advice", "")),
+            notes=f"{unknown_mark}{notes}" if unknown_mark else notes,
         )
 
     def _research_fallback(self, ctx: AgentContext) -> AgentOutput:
@@ -105,14 +106,15 @@ class Agent5TrendProphet(BaseAgent):
 
         notes = f"[规则降级] {prof.category}门类, AI风险={ai_risk}"
         if cfg.economic_tier == "working":
-            notes += f", 普通家庭适配分析"
+            notes += ", 普通家庭适配分析"
 
+        ts, unknown_mark = freshness_with_marker(ctx)
         return AgentOutput(
             agent_name=self.agent_name,
             profession_code=prof.code,
             raw_score=min(100, max(20, score)),
             confidence=0.70,
-            freshness_date=datetime.now(),
+            freshness_date=ts,
             source_count=3,
-            notes=notes,
+            notes=f"{notes}{unknown_mark}",
         )

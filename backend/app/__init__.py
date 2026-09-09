@@ -1,8 +1,8 @@
 """
 FastAPI 应用工厂
 """
-import sys
 import os
+import sys
 
 # Windows UTF-8 支持
 if sys.platform == 'win32':

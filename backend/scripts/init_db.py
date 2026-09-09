@@ -2,12 +2,14 @@
 数据库初始化 + 基础语料导入
 P0: 导入 gaokao-mentor-wisdom 的105条结构化JSON
 """
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
-from app.models.database import init_db, get_connection
+
+from app.models.database import get_connection, init_db
 
 # ============================================
 # 张雪峰核心语录（精选30条，覆盖6大分类）

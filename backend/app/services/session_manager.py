@@ -26,15 +26,12 @@ from __future__ import annotations
 
 import json
 import os
-import time
 import threading
-from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
 from pathlib import Path
-
+from typing import Any, Dict, List, Optional
 
 # ============================================
 # 枚举
@@ -213,16 +210,34 @@ class Session:
         for prof_code, outputs_list in self.agent_outputs.items():
             result[prof_code] = []
             for o in outputs_list:
+                # freshness 可为 null(「时间未知」,AGENT_05 freshness 修复);
+                # evidence_refs 为 CONTRACT §c.2 的 evidence_id 外键。
+                fd = o.get("freshness_date")
                 result[prof_code].append(AgentOutput(
                     agent_name=o["agent_name"],
                     profession_code=o["profession_code"],
                     raw_score=o["raw_score"],
                     confidence=o["confidence"],
-                    freshness_date=datetime.fromisoformat(o["freshness_date"]),
+                    freshness_date=datetime.fromisoformat(fd) if fd else None,
                     source_count=o.get("source_count", 1),
                     notes=o.get("notes", ""),
+                    evidence_refs=list(o.get("evidence_refs") or []),
                 ))
         return result
+
+    @staticmethod
+    def agent_output_to_dict(output) -> Dict[str, Any]:
+        """AgentOutput → Session 可序列化 dict(freshness_date=None 表「时间未知」)。"""
+        return {
+            "agent_name": output.agent_name,
+            "profession_code": output.profession_code,
+            "raw_score": output.raw_score,
+            "confidence": output.confidence,
+            "freshness_date": output.freshness_date.isoformat() if output.freshness_date else None,
+            "source_count": output.source_count,
+            "notes": output.notes,
+            "evidence_refs": list(output.evidence_refs or []),
+        }
 
     def to_dict(self) -> dict:
         return {

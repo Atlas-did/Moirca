@@ -1,133 +1,145 @@
-# Moirca — AI 高考志愿决策助手
+# WebBridge
 
-> 不只看你能上什么 — 看你该不该上。
+> 让 AI 客户端驱动一台**真实的 Chrome**,并把每一次"浏览/采集"落成**可回查的证据**。
 
-Moirca 是一个基于多 Agent 架构的高考志愿推荐工具。7 个 AI Agent 从官方数据、在校生口碑、时效性、数据矛盾、就业趋势五个维度并行分析，融合张雪峰决策框架，生成可追溯、可解释的结构化决策简报。
-
-## 核心差异化
-
-- 🧠 **多 Agent 多视角辩论** — 5 个 Agent 并行调研，第 6 个 Agent 融合计算，每条推荐都可追溯推理链路
-- 📊 **决策说明书** — 不是"推荐你报XX"，而是"官方数据✅ + 在校生反馈⚠️ + 风险提示 + 趋势预警"
-- 🎯 **张雪峰框架融入** — 就业倒推、家庭背景分流、地域套利分析，说"实在话"而非"官方话"
-- 🔧 **填报辅助工具链** — 浏览器插件（moirca-webbridge）只在主动触发时读取页面，把招生网/考试院内容直接丢给 Agent 解读
-- 🔄 **数据回收飞轮** — 用户匿名贡献真实填报数据 → Agent 交叉验证 → 推荐越来越准
-
-## 架构
+WebBridge 是一个开源自研的浏览器 AI Agent 桥接框架(极客工具,不商用)。
+它不做云爬虫、不开 headless:AI 客户端经 MCP 控制**你自己浏览器里的真实 Chrome**,
+每次浏览自动落证据库,研究管线基于证据生成逐句可回查的决策说明书。
 
 ```
-用户输入（分数/省份/决策树选择）
-    ↓
-7 Agent 并行管线
-    ├── Agent 1 官方猎手     — 公开分数线/招生计划
-    ├── Agent 2 口碑矿工     — 在校生真实体验
-    ├── Agent 3 时效警犬     — 专业撤销/新增监控
-    ├── Agent 4 矛盾侦探     — 三源交叉验证（官方+口碑+用户贡献）
-    ├── Agent 5 趋势先知     — 张雪峰框架 + 就业倒推
-    ├── Agent 6 融合炼金术士 — 加权融合 + 4 因子修正
-    └── Agent 7 报告生成器   — Markdown 决策简报
-    ↓
-冲/稳/保分层推荐 + 风险预警 + 对比分析
+AI 客户端(Claude Code / Cursor)
+   │ MCP(stdio,JSON-RPC 2.0)
+   ▼
+daemon(Node.js,单进程)
+   ├─ mcp-server:15 个 browser_* 工具
+   ├─ extension-bridge:WS Server,只绑 ws://127.0.0.1:9223
+   └─ snapshot-store / artifacts:文件旁路 + 证据自动落库
+   │ HTTP(127.0.0.1:8000)                │ WebSocket(ws://127.0.0.1:9223)
+   ▼                                       ▼
+backend(FastAPI + SQLite)          Chrome 扩展(MV3,双模式)
+   ├─ POST /api/route        意图四分类路由    ├─ readonly:activeTab 最小权限
+   ├─ /api/evidence/*        证据库(唯一真源) │   (选中文字→页面只读问答)
+   ├─ POST /api/deep-research 7-Agent 深研管线  └─ pro:chrome.debugger(CDP 全权)
+   └─ POST /api/report       决策说明书+引用      (导航/点击/填表/抽取)
+   │
+   ▼
+真实 Chrome 浏览器(非 headless)
 ```
 
-## 项目结构
+## 核心约定
 
-```
-moirca/
-├── backend/          # Python FastAPI 后端
-│   ├── app/
-│   │   ├── agents/   # 7 Agent 系统
-│   │   ├── api/      # REST API（推荐/决策/对比/页面上下文问答）
-│   │   ├── models/   # 数据模型
-│   │   └── services/ # 业务服务
-│   └── data/         # 数据文件（需自行准备）
-├── app/              # React + TypeScript 前端
-│   └── src/
-│       ├── components/
-│       ├── pages/
-│       └── api/
-└── docs/             # 文档
-
-moirca-webbridge/     # 浏览器插件（最小权限、只读，接入 POST /api/context/ask）
-```
+- **不抢当前标签**:写动作默认开新标签(`target:'newTab'`);用户当前标签只允许只读命令,越权 → `TARGET_DENIED`。
+- **三路分工**:AX 快照=动作定位;extract=readability 正文;截图仅供人复核,禁止作为动作依据。
+- **采集必落库**:每次 extract 自动 `POST /api/evidence/save`;大正文走文件旁路 `daemon/artifacts/`。
+- **先路由后动手**:`POST /api/route` 四分类(秒答/页面问答/深研/受控浏览),无命中 `label=null`,不拒答。
+- **上下文预算**:snapshot 25k 字符 + digest ≤2k token,超出落盘回 `fileRef`,不撑爆主上下文。
 
 ## 快速开始
 
-### 1. 环境要求
-
-- Python 3.10+
-- Node.js 18+
-- Chrome / Edge 浏览器（用于 moirca-webbridge 插件）
-
-### 2. 后端
+环境:Python 3.12+、Node.js 18+、Chrome/Edge。
 
 ```bash
-cd moirca/backend
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env，填入你的 LLM API Key
-
-# 初始化数据库
-python scripts/init_db.py
-
-# 启动
-python run.py
-# API 文档: http://localhost:8000/docs
-```
-
-### 3. 前端
-
-```bash
-cd moirca/app
+# 1) 安装(仓库根,npm workspaces:shared-types/daemon/extension)
 npm install
-npm run dev
-# 前端: http://localhost:5173
+pip install -r backend/requirements.txt
+
+# 2) backend
+cp backend/.env.example backend/.env   # 填 LLM_API_KEY(可留空跑降级)
+cd backend && python run.py            # http://127.0.0.1:8000/docs
+
+# 3) daemon(另开终端)
+cd daemon && npm install && npm run dev
+# WS 只绑 ws://127.0.0.1:9223;首次启动生成配对 token 并写入 daemon/.bridge-token(0600)
+
+# 4) Chrome 扩展
+cd extension && npm run build          # → dist-pro/ 与 dist-readonly/
+# chrome://extensions → 开发者模式 → 加载已解压的扩展程序 → 选 dist-pro/(或 dist-readonly/)
 ```
 
-### 4. 浏览器插件（moirca-webbridge）
+## Token 配对(daemon ↔ 扩展)
 
-只读、最小权限的 MV3 插件：浏览招生网/省考试院/阳光高考时，选中文字或直接提问，
-由后端 `POST /api/context/ask` 复用现有 7 个 Agent 解读页面内容。
+daemon 启动时生成 64 位 hex token:
 
-```
-chrome://extensions → 开发者模式 → 加载已解压的扩展程序
-→ 选择 moirca-webbridge/ 目录
+```bash
+cat daemon/.bridge-token   # 复制这串 hex
 ```
 
-详细说明见 [moirca-webbridge/README.md](moirca-webbridge/README.md)。
+扩展侧在 hello 握手中携带该 token(`{"type":"hello","mode":"pro","protocolVersion":1,"token":"<hex>",...}`)。
+token 不匹配或 `protocolVersion` 不符会被 close(4001)。可用 `WEBBRIDGE_TOKEN=<hex>` 固定预共享值。
+扩展连接状态见 service worker 控制台(badge `DBG`)。
 
-## 数据声明
+## 接入 Claude Code(MCP)
 
-本项目**不包含**以下数据（已通过 .gitignore 排除）：
+```bash
+# 先构建 daemon 产物
+cd daemon && npm run build
 
-- ❌ 爬取的第三方网站数据（kkdaxue、知乎等）
-- ❌ 数据库文件（*.db）
-- ❌ API 密钥（.env）
-- ❌ 用户隐私数据
+# 注册进 Claude Code
+claude mcp add webbridge -- node /绝对路径/daemon/dist/index.js
+```
 
-提供的示例数据仅包含：
-- ✅ `public_scorelines_seed.json` — 少量公开分数线样本
-- ✅ `kkdaxue_sample.json` — 20 条匿名校生体验样本
+可用工具(15 个):`browser_navigate / new_tab / close_tab / switch_tab / get_tabs / snapshot /
+find_in_snapshot / click / fill / press_key / scroll / evaluate / wait / screenshot / extract`,
+另有可选 `browser_route`(env `WEBBRIDGE_MCP_ROUTE_TOOL=on` 时注册,调 backend 意图路由)。
 
-**如需完整数据**：请自行爬取或联系项目维护者获取数据合作方案。
+## readonly / pro 双模式
 
-## 技术栈
+| | readonly(最小权限) | pro(CDP 全权) |
+|---|---|---|
+| 权限 | `activeTab + scripting + storage` | `debugger + <all_urls>` |
+| 通道 | 页面只读问答(选中文字 → `POST /api/context/ask`) | 导航/点击/填表/抽取/截图 |
+| 写命令 | 一律 `READONLY_REJECTED` | 按 target 矩阵放行 |
+| 产物 | `extension/dist-readonly/` | `extension/dist-pro/` |
 
-| 层级 | 技术 |
+完整命令×模式矩阵见 [docs/CONTRACT.md](docs/CONTRACT.md) §a.4。
+
+## backend API 一览(127.0.0.1:8000)
+
+| 端点 | 说明 |
 |------|------|
-| 后端框架 | Python FastAPI |
-| AI/LLM | OpenAI 兼容 API（支持 DeepSeek/GPT/本地模型） |
-| 前端 | React + TypeScript + Vite + TailwindCSS + shadcn/ui |
-| 数据库 | SQLite（可迁移 PostgreSQL） |
-| 浏览器插件 | Chrome Manifest V3（最小权限：activeTab + scripting + storage，只读） |
+| `GET /api/health` | 服务与证据库状态 |
+| `POST /api/route` | 意图路由(quick_answer / page_qa / deep_research / controlled_browse) |
+| `POST /api/evidence/save` · `GET /api/evidence/query` · `GET /api/evidence/{id}` · `POST /api/evidence/quote` | 证据库:落库 / 检索 / 回查原文 / claim 引用校验 |
+| `POST /api/deep-research`(+`/{task_id}`、`/{task_id}/stream`) | 7-Agent 高考垂直深研管线(202 受理 → 轮询 / SSE) |
+| `POST /api/report` | 决策说明书,逐 claim citations(仅 evidence_id 外键) |
+| `POST /api/context/ask` | 页面只读问答(readonly 通道②,XML 定界防注入) |
 
-## 开源协议
+可选鉴权:backend 设 `WEBBRIDGE_API_TOKEN` 后,证据/报告/深研端点要求
+`X-WebBridge-Token` 请求头;daemon 侧对应 `WEBBRIDGE_BACKEND_TOKEN`。
+默认留空(只绑回环,零配置)。
 
-AGPL-3.0 — 详见 [LICENSE](moirca/LICENSE)
+## 高考垂直深研
+
+深研管线保持高考志愿垂直场景:官方数据猎手 → 口碑矿工 → 时效警犬 → 矛盾侦探 → 趋势先知 → 融合 →
+报告生成器。报告逐句携带 `[E:ev_*]` 引用,每条结论可回查到证据原文(`raw_ref` 指向 `daemon/artifacts/` 旁路文件)。
+
+## 开发与发布门禁
+
+```bash
+npm test                        # daemon + extension 单测
+cd backend && python -m pytest tests/ -q && python -m ruff check .
+python -m pytest skills/tests -q
+node scripts/check-drift.mjs    # 契约漂移校验(端口 / shared-types / 工具名 / 错误码)
+bash scripts/smoke-e2e.sh       # 自动冒烟(扩展全链路为手工清单)
+```
+
+**发布前必过**:自动冒烟全绿 + [docs/E2E_SMOKE.md](docs/E2E_SMOKE.md) 人工清单全部勾选。
+
+## 目录结构
+
+```
+shared-types/   TS 类型单一真源(WS 协议 / MCP 工具 / 错误码 / Evidence)
+daemon/         MCP Server(stdio)+ WS Server(9223)+ artifacts 旁路
+extension/      MV3 双模式扩展(readonly / pro,vite 构建矩阵)
+backend/        FastAPI:路由 / 证据库 / 深研管线 / 报告
+skills/         意图-策略定义(SCHEMA + few-shot 池,机器可校验)
+app/            高考 UI(React,本轮保留未重构)
+docs/           CONTRACT.md(接口真源)/ ARCHITECTURE.md / legacy(v1 历史)
+```
 
 ## 免责声明
 
-本工具提供的所有分析和建议**仅供参考**，最终志愿填报决策应以各省教育考试院官方信息为准。
+- 本工具控制的是**用户自己的浏览器**,请遵守目标网站的服务条款与 robots 约定;登录墙内的个人数据
+  操作(通道④受控浏览)请逐项确认,风险自担。
+- 高考志愿相关的一切分析输出**仅供参考**,最终决策以各省教育考试院、阳光高考平台等**官方最新信息**为准。
+- 项目不商用,按 [AGPL-3.0](LICENSE) 开源。

@@ -4,9 +4,10 @@
 对齐 docs/api.md 第5节 + docs/backlog.md P1-3
 对两个志愿进行多维度横向对比
 """
+from typing import List
+
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional, List
 
 router = APIRouter()
 
@@ -186,8 +187,8 @@ def compare_volunteers(request: CompareRequest):
     ]
 
     evidence = [
-        f"院校层次数据来源: 教育部学科评估 + 公开排名",
-        f"就业数据来源: 行业报告 + 社区反馈分析",
+        "院校层次数据来源: 教育部学科评估 + 公开排名",
+        "就业数据来源: 行业报告 + 社区反馈分析",
         f"对比时间: 基于{request.province}省{request.score}分考生画像",
     ]
 

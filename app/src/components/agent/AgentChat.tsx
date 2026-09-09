@@ -69,34 +69,34 @@ export default function AgentChat() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-[var(--bg-panel)]">
-      <div className="h-12 border-b border-[var(--border)] flex items-center px-3 gap-2 shrink-0">
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm"
-          style={{ backgroundColor: currentAgent.color }}>
-          {currentAgent.avatar}
-        </div>
+    <div className="h-full flex flex-col bg-background">
+      <div className="h-12 bg-card border-b border-border flex items-center px-4 gap-2 shrink-0">
+        <span
+          className="w-1.5 h-1.5 rounded-full shrink-0"
+          style={{ backgroundColor: currentAgent.color, opacity: 0.6 }}
+        />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium" style={{ color: 'var(--text)' }}>{currentAgent.name}</div>
-          <div className="text-[10px] text-slate-400 flex items-center gap-1">
-            <Circle className="w-2 h-2 fill-green-400 text-green-400" />
+          <div className="text-[13px] font-medium text-foreground truncate">{currentAgent.name}</div>
+          <div className="text-[11px] text-muted-foreground flex items-center gap-1">
+            <Circle className="w-2 h-2 fill-[hsl(var(--success))] text-[hsl(var(--success))]" />
             {loading ? '回复中...' : '在线'}
           </div>
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto thin-scrollbar p-4 space-y-3">
         {chatMessages.map(msg => (
           <motion.div
-            key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+            key={msg.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
             className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
           >
-            <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
+            <div className={`max-w-[85%] rounded-md px-3 py-2 text-[13px] leading-[1.6] ${
               msg.isUser
-                ? 'bg-blue-500 text-white rounded-br-md'
-                : 'bg-[var(--card)] border border-[var(--border)] text-[var(--text)] rounded-bl-md'
+                ? 'bg-primary text-primary-foreground rounded-br-sm'
+                : 'bg-card border border-border text-foreground rounded-bl-sm'
             }`}>
-              {!msg.isUser && <div className="text-[10px] mb-0.5 opacity-70">{msg.senderName}</div>}
-              <div className="leading-relaxed whitespace-pre-wrap">
+              {!msg.isUser && <div className="text-[11px] text-muted-foreground mb-0.5">{msg.senderName}</div>}
+              <div className="whitespace-pre-wrap">
                 {msg.content}
                 {loading && msg.id === chatMessages[chatMessages.length - 1]?.id && (
                   <span className="inline-block w-1.5 h-4 bg-current ml-0.5 animate-pulse align-middle" />
@@ -107,7 +107,7 @@ export default function AgentChat() {
         ))}
       </div>
 
-      <div className="border-t border-[var(--border)] p-2 shrink-0">
+      <div className="border-t border-border bg-card p-3 shrink-0">
         <div className="flex gap-2">
           <input
             type="text" value={input}
@@ -115,13 +115,12 @@ export default function AgentChat() {
             onKeyDown={e => e.key === 'Enter' && handleSend()}
             placeholder={`对 ${currentAgent.name} 说点什么...`}
             disabled={loading}
-            className="flex-1 bg-[var(--bg)] border border-[var(--border)] rounded-lg px-3 py-2 text-sm text-[var(--text)] placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50"
+            className="flex-1 h-9 bg-background border border-input rounded-md px-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 transition-colors disabled:opacity-50"
           />
           <motion.button
-            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
             onClick={handleSend}
             disabled={!input.trim() || loading}
-            className="w-9 h-9 rounded-lg bg-blue-500 text-white flex items-center justify-center disabled:opacity-40 transition-opacity"
+            className="w-9 h-9 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center shadow-xs disabled:opacity-40 transition-colors"
           >
             <Send className="w-4 h-4" />
           </motion.button>

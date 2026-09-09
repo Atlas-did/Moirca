@@ -14,11 +14,10 @@ Agent 6: 融合炼金术士（Fusion Alchemist）
 
 继承自计划书 [P122-P130] 的完整伪代码设计
 """
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Optional, Tuple
-import math
-
+from typing import Dict, List, Optional, Tuple
 
 # ============================================
 # 数据类
@@ -31,9 +30,14 @@ class AgentOutput:
     profession_code: str     # 国标专业代码（如 "080901"）
     raw_score: float         # 原始评分 (0-100)，已归一化
     confidence: float        # Agent自身置信度 (0-1)
-    freshness_date: datetime # 数据最后更新时间
+    # 数据最后更新时间。None = 「时间未知」：上下文没有任何真实数据时间戳时，
+    # Agent 不允许用 datetime.now() 伪装新鲜（AGENT_05 freshness 修复），只允许置 None。
+    freshness_date: Optional[datetime]
     source_count: int = 1    # 数据源数量
     notes: str = ""          # 调研摘要
+    # 证据链(CONTRACT §c.2,AGENT_05 接入):该输出引用的 evidence_id 外键,
+    # 报告层据此渲染 [E:evidence_id] 行内引用;禁止把 quote 复制进本结构。
+    evidence_refs: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -163,6 +167,10 @@ class FusionAlchemist:
         """
         decay_type = self.config.decay_functions.get(agent_name, "exponential")
         half_life = self.config.half_lives.get(agent_name, 365)
+        # 「时间未知」(None)守卫:不伪装新鲜,按中性保守衰减 0.5 处理。
+        # 这是唯一新增的输入状态分支;对已知真实时间戳的衰减公式保持原样不动。
+        if freshness_date is None:
+            return 0.5
         age_days = max(0, (datetime.now() - freshness_date).days)
 
         if decay_type == "exponential":

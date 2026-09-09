@@ -3,6 +3,7 @@ Moirca 配置管理
 继承自 MiroFish 配置架构，移除 Zep/OASIS 依赖
 """
 import os
+
 from dotenv import load_dotenv
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -69,6 +70,31 @@ class Config:
     # 文本处理
     DEFAULT_CHUNK_SIZE = 500
     DEFAULT_CHUNK_OVERLAP = 50
+
+    # ---- EVIDENCE_*(证据层,AGENT_02;§f 旁路根目录与 §h quote 上限)----
+    # artifacts 根:daemon/artifacts(evidence.raw_ref 相对该根解析),env WEBBRIDGE_ARTIFACTS_DIR 可覆盖
+    EVIDENCE_ARTIFACTS_DIR = os.environ.get(
+        'WEBBRIDGE_ARTIFACTS_DIR',
+        os.path.abspath(os.path.join(project_root, '..', 'daemon', 'artifacts')),
+    )
+    # evidence.quote 字符上限(§h;CONTRACT 硬性 2000,除非显式放宽)
+    EVIDENCE_QUOTE_MAX_CHARS = int(os.environ.get('EVIDENCE_QUOTE_MAX_CHARS', '2000'))
+
+    # ---- DEEP_RESEARCH_*(深研管线,AGENT_05)----
+    # 深研默认预估(§e.3 estimate 缺省;实际以 SKILL effort 映射 ∩ 用户预算为准)
+    DEEP_RESEARCH_DEFAULT_MINUTES = int(os.environ.get('DEEP_RESEARCH_DEFAULT_MINUTES', '10'))
+    DEEP_RESEARCH_DEFAULT_MAX_EVIDENCE = int(
+        os.environ.get('DEEP_RESEARCH_DEFAULT_MAX_EVIDENCE', '50'))
+    # query 字符上限(§e.3:≤2000)
+    DEEP_RESEARCH_QUERY_MAX_CHARS = int(os.environ.get('DEEP_RESEARCH_QUERY_MAX_CHARS', '2000'))
+    # 证据保存失败重试次数(§g.2:重试 2 次后降级为仅落盘 raw_ref)
+    DEEP_RESEARCH_SAVE_RETRIES = int(os.environ.get('DEEP_RESEARCH_SAVE_RETRIES', '2'))
+
+    # ---- AGENT_07 审计新增:可选 API token 鉴权开关 ----
+    # 留空(默认)= 不鉴权(本地 127.0.0.1 开发零配置);
+    # 设置后 /api/evidence/*、/api/report、/api/deep-research 需带请求头
+    # X-WebBridge-Token(见 app/api/auth.py)。daemon 侧对应 WEBBRIDGE_BACKEND_TOKEN。
+    WEBBRIDGE_API_TOKEN = os.environ.get('WEBBRIDGE_API_TOKEN', '')
 
     @classmethod
     def validate(cls) -> list[str]:

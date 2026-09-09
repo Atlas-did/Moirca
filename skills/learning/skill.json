@@ -1,18 +1,84 @@
 {
-  "name": "learning-assistant",
-  "description": "学习助手 - 论文阅读、代码学习、知识整理",
-  "version": "1.0.0",
-  "author": "Moirca",
-  "tools": ["browser_navigate", "browser_snapshot", "browser_screenshot", "browser_scroll"],
-  "workflows": {
-    "read-paper": {
-      "description": "阅读并总结学术论文",
-      "steps": [
-        { "action": "browser_navigate", "params": { "url": "{paper_url}" } },
-        { "action": "browser_snapshot" },
-        { "action": "browser_screenshot" }
+  "name": "digest-page",
+  "description": "学习页消化:当前页只读问答 + 对长文(论文/文档/教程)在专用标签做结构化浓缩摘录,摘录落证据库供后续引用。",
+  "version": "2.0.0",
+
+  "intents": [
+    {
+      "trigger_examples": [
+        "这一页里作者是怎么论证结论的?",
+        "帮我把当前这篇论文的方法部分讲成人话",
+        "总结一下我打开的这个教程,重点划出来",
+        "把这篇文档的要点摘录下来存档,以后写东西要引用"
       ],
-      "analysis": "提取论文核心贡献、方法论、实验结果，生成结构化总结"
+      "channel": "page_qa",
+      "effort": "low",
+      "confidence_hint": 0.8
+    },
+    {
+      "trigger_examples": [
+        "把这篇 arXiv 论文完整读一遍,提炼贡献/方法/实验三部分",
+        "深入分析这份技术文档,给我一份结构化笔记",
+        "把这份教程从头到尾读一遍,每章都做存档摘要"
+      ],
+      "channel": "deep_research",
+      "effort": "medium",
+      "confidence_hint": 0.7
     }
-  }
+  ],
+
+  "strategy": {
+    "plan": {
+      "overview": "两种形态,按用户意图择一,均不改变用户当前页面状态:(A)页面只读问答——用户问的正是当前页,直接取当前页只读快照作上下文回答;(B)浓缩摘录——用户要'读完整篇/存档引用',在专用后台标签打开目标页面,分段 extract 生成结构化笔记,并把每段原文摘录落证据库。形态 A 不落库(最小权限),形态 B 落库。",
+      "phases": [
+        {
+          "phase": "A1 形态判定与取材",
+          "guidance": "用户问题指代'当前页/这页/选中内容'且未要求存档时走形态 A:context.page_url 非空时对 activeTab 做只读 snapshot(readonly 模式无 ref,纯文本口径);用户选中了文字则优先用选区文本,与页面上下文拼接。回答只依据快照/选区原文,页面上没有的信息明确说'本页未提及',不外部脑补。",
+          "tools": ["browser_snapshot", "browser_extract"]
+        },
+        {
+          "phase": "B1 长文分页采集",
+          "guidance": "目标 URL 已知时 browser_new_tab 专用后台标签打开;目标在用户当前页时禁止 navigate,提示用户'请提供链接,或由我基于当前页做只读摘要(不存档)'。browser_extract(markdown) 取正文,超长则按 fileRef 旁路文件分段读;确有翻页/滚动需要的长文档,在专用标签内 browser_scroll + 分段 extract。",
+          "tools": ["browser_new_tab", "browser_navigate", "browser_extract", "browser_scroll", "browser_wait"]
+        },
+        {
+          "phase": "B2 浓缩摘录与落库",
+          "guidance": "把正文按 主题/论点 分段,每段生成:浓缩摘录(≤200 字符原意保留)+ 原文 quote(≤2000 字符,保留原文不清洗)。每段经 browser_extract 自动落证据库拿 evidence_id;结构化输出 核心贡献/方法/结果/局限 四栏,每条结论句带 [E:ev_xxx]。",
+          "tools": ["browser_extract"]
+        }
+      ],
+      "invariants": [
+        "形态 A 只做只读:不对 activeTab 发任何写命令,不滚动、不切标签、不落库(CONTRACT §c.3:通道②不落库)",
+        "形态 B 的一切动作发生在专用后台标签;用户当前页只读不动",
+        "摘录必须保留原文口径,翻译/简化后的表述不得写回 quote 字段",
+        "页面上不存在的结论不生成;'本页未提及'是合法回答(原则 7:不产出拒答文案,但也不编造)"
+      ]
+    },
+    "verification_rules": [
+      { "after": "browser_snapshot(activeTab)", "check": "返回的 title/url 与用户所指页面一致;totalChars>0;若 truncated=true 改用 fileRef 或请用户缩小问题范围" },
+      { "after": "browser_navigate(形态 B)", "check": "finalUrl 与目标一致、标题含文档/论文关键词,非 404/付费墙占位页" },
+      { "after": "browser_extract(形态 B)", "check": "content 为可读 markdown(非空、非纯导航菜单);每段摘录能在 content 中找到原句(子串匹配),找不到即视为编造,废弃该段重抽" },
+      { "after": "落库", "check": "每个 evidence_id 存在且 quote 非空;结论句引用的 evidence_id 逐一回查有效" }
+    ],
+    "failure_recovery": [
+      { "condition": "readonly 模式下用户要求走形态 B(需要开新标签)", "action": "如实告知 readonly 构建无法开标签/落库,给出当前页只读摘要;建议切换 pro 构建或手动粘贴文本走形态 A" },
+      { "condition": "extract 结果是导航/评论等噪声(正文抽取失败)", "action": "browser_extract(selector 限定正文容器)重试 1 次;再失败用 browser_snapshot 文本口径代替,并注明'为快照口径而非 readability 口径'" },
+      { "condition": "付费墙/登录墙截断正文", "action": "只摘录可见部分并明确标注'仅摘到公开可见部分';不提示也不尝试绕过付费墙" },
+      { "condition": "PDF/特殊文档 extract 失败", "action": "browser_snapshot(full) 兜底;仍失败则中止并说明该格式暂不支持,不输出编造摘要" },
+      { "condition": "ref/快照过期(用户切换了标签页)", "action": "重新 snapshot 后再回答;回答里注明基于哪次快照(时间+标题)" }
+    ],
+    "safety": {
+      "write_level": "low",
+      "targets_allowed": ["activeTab", "newTab"]
+    }
+  },
+
+  "evidence_policy": {
+    "save": true,
+    "channel_hint": "page_qa",
+    "fields": ["url", "title", "quote", "locator", "source_quality", "task_id"],
+    "source_quality_hint": "unknown"
+  },
+
+  "tools": ["browser_snapshot", "browser_find_in_snapshot", "browser_extract", "browser_new_tab", "browser_navigate", "browser_close_tab", "browser_scroll", "browser_wait"]
 }

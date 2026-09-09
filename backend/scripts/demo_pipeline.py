@@ -5,7 +5,9 @@ Session + TaskScheduler 验证脚本
 
 运行: python scripts/demo_pipeline.py
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 if sys.platform == 'win32':
@@ -13,15 +15,16 @@ if sys.platform == 'win32':
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-import time
 import random
+import time
 from datetime import datetime
 
 from app.services.session_manager import (
-    SessionManager, Session, UserProfile, SessionStatus,
+    Session,
+    SessionManager,
+    UserProfile,
 )
-from app.services.task_scheduler import TaskScheduler, PipelineDAG
-
+from app.services.task_scheduler import PipelineDAG, TaskScheduler
 
 # ============================================
 # 模拟 Agent handlers（真实实现会调LLM）
@@ -67,7 +70,7 @@ def mock_fusion_handler(session: Session) -> Session:
 
 def mock_report_handler(session: Session) -> Session:
     """模拟 Agent 7 报告生成"""
-    print(f"    [Agent7_报告生成器] 正在生成报告...")
+    print("    [Agent7_报告生成器] 正在生成报告...")
     time.sleep(0.2)
     session.report = f"""# Moirca 志愿推荐报告
 
@@ -117,14 +120,14 @@ def main():
     }
     dag = PipelineDAG.build_default(handlers)
     plan = dag.get_execution_plan()
-    print(f"\n[2] DAG 执行计划:")
+    print("\n[2] DAG 执行计划:")
     for i, layer in enumerate(plan):
         types = [dag.get_node(n).node_type.value if dag.get_node(n) else "?" for n in layer]
         print(f"    Layer {i}: {layer} ({types})")
 
     # 3. 运行调度器
     scheduler = TaskScheduler(sm, dag)
-    print(f"\n[3] 启动调度器...")
+    print("\n[3] 启动调度器...")
     start = time.time()
     result = scheduler.run(session.session_id)
     elapsed = time.time() - start
@@ -142,14 +145,14 @@ def main():
     print(f"    报告: {'已生成' if result.report else '未生成'}")
 
     # 5. 断点续跑验证
-    print(f"\n[5] 断点续跑验证...")
+    print("\n[5] 断点续跑验证...")
     sm.save(result)
     reloaded = sm.get(session.session_id)
     completed = [s.step_name for s in reloaded.steps if s.status.value == "completed"]
     print(f"    重新加载后已完成步骤: {completed}")
 
     # 6. 再次运行（应该全部跳过）
-    print(f"\n[6] 再次运行（验证跳过已完成步骤）...")
+    print("\n[6] 再次运行（验证跳过已完成步骤）...")
     result2 = scheduler.run(session.session_id)
     print(f"    所有步骤应已跳过，状态: {result2.status.value}")
 
@@ -157,14 +160,14 @@ def main():
     sm.save(result2)
 
     print(f"\n{'='*60}")
-    print(f"  验证结论:")
-    print(f"  [OK] Session 创建+持久化+加载")
-    print(f"  [OK] DAG 拓扑排序+分层执行")
-    print(f"  [OK] Agent 1/2/3/5 并行执行")
-    print(f"  [OK] Agent 4+6 等待上游完成")
-    print(f"  [OK] Agent 7 串行生成报告")
-    print(f"  [OK] 断点续跑（跳过已完成步骤）")
-    print(f"  [OK] Session JSON 持久化")
+    print("  验证结论:")
+    print("  [OK] Session 创建+持久化+加载")
+    print("  [OK] DAG 拓扑排序+分层执行")
+    print("  [OK] Agent 1/2/3/5 并行执行")
+    print("  [OK] Agent 4+6 等待上游完成")
+    print("  [OK] Agent 7 串行生成报告")
+    print("  [OK] 断点续跑（跳过已完成步骤）")
+    print("  [OK] Session JSON 持久化")
     print(f"{'='*60}")
 
 

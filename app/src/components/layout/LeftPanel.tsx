@@ -27,11 +27,11 @@ export default function LeftPanel() {
   };
 
   return (
-    <div className="flex-1 flex flex-col min-w-0 bg-slate-50 dark:bg-slate-900 overflow-hidden">
+    <div className="flex-1 flex flex-col min-w-0 bg-background overflow-hidden">
       {/* Top Bar */}
-      <div className="h-10 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-4 shrink-0">
+      <div className="h-12 bg-card border-b border-border flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+          <span className="text-[13px] font-medium tracking-tight text-foreground">
             {labelMap[state.leftNav] || state.leftNav}
           </span>
         </div>

@@ -1,0 +1,22 @@
+{
+  "name": "webbridge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WebBridge —— 浏览器 AI Agent 桥接框架:AI 客户端 ─MCP→ daemon ─WS:9223→ Chrome 扩展(CDP) → 真实浏览器,每次浏览/采集落成可回查证据。",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "workspaces": [
+    "shared-types",
+    "daemon",
+    "extension"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "check:drift": "node scripts/check-drift.mjs"
+  }
+}

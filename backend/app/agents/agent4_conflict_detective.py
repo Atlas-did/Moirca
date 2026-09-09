@@ -4,11 +4,9 @@ Agent 4: 矛盾侦探（Conflict Detective）
 职责: 交叉验证官方数据与社区口碑，发现信息矛盾
 分析维度: 官方就业率 vs 社区真实反馈、招生宣传 vs 实际就读体验
 """
-from datetime import datetime
-from typing import List
-from ..utils.llm_client import LLMClient
-from .base import BaseAgent, AgentContext
+from ..utils.untrusted import UNTRUSTED_NOTICE
 from .agent6_fusion_alchemist import AgentOutput
+from .base import AgentContext, BaseAgent, freshness_with_marker
 
 
 def _safe_format_summary(official_data: dict) -> str:
@@ -32,7 +30,7 @@ class Agent4ConflictDetective(BaseAgent):
         return "矛盾侦探"
 
     def _system_prompt(self) -> str:
-        return """你是一位信息核查专家，专门交叉验证不同来源的数据，发现信息矛盾。
+        return UNTRUSTED_NOTICE + "\n\n" + """你是一位信息核查专家，专门交叉验证不同来源的数据，发现信息矛盾。
 
 你的工作方式:
 1. 对比官方数据与社区口碑: 官方说就业率95%，但社区说"班里一半人没找到工作"→ 矛盾
@@ -71,14 +69,16 @@ class Agent4ConflictDetective(BaseAgent):
 
     def _parse_response(self, response: dict, ctx: AgentContext) -> AgentOutput:
         # Agent 4 的 raw_score 表示数据一致性，不是对专业的评价
+        # freshness 修复:无真实数据时间戳时显式「时间未知」,不伪装新鲜。
+        ts, unknown_mark = freshness_with_marker(ctx)
         return AgentOutput(
             agent_name=self.agent_name,
             profession_code=ctx.profession.code,
             raw_score=float(response.get("raw_score", 70)),
             confidence=float(response.get("confidence", 0.55)),
-            freshness_date=datetime.now(),
+            freshness_date=ts,
             source_count=len(response.get("conflicts_found", [])),
-            notes=response.get("verdict", ""),
+            notes=f"{unknown_mark}{response.get('verdict', '')}" if unknown_mark else response.get("verdict", ""),
         )
 
     def _research_fallback(self, ctx: AgentContext) -> AgentOutput:
@@ -96,12 +96,13 @@ class Agent4ConflictDetective(BaseAgent):
         else:
             score, verdict = 40, "数据不足，无法交叉验证"
 
+        ts, unknown_mark = freshness_with_marker(ctx)
         return AgentOutput(
             agent_name=self.agent_name,
             profession_code=prof.code,
             raw_score=score,
             confidence=0.40 if score < 50 else 0.55,
-            freshness_date=datetime.now(),
+            freshness_date=ts,
             source_count=posts_count + official_count,
             notes=f"[规则降级] {verdict}",
         )

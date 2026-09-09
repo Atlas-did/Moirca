@@ -1,5 +1,5 @@
 # ============================================================
-# Moirca .gitignore — 开源安全清单
+# WebBridge .gitignore — 开源安全清单
 # ============================================================
 
 # --- 环境变量 & API 密钥 ---
@@ -16,6 +16,16 @@
 *.db-shm
 *.sqlite
 *.sqlite3
+
+# --- WebBridge 构建产物 / 本地运行时(AGENT_07) ---
+daemon/artifacts/
+daemon/.bridge-token
+daemon/data/
+daemon/dist/
+extension/dist-pro/
+extension/dist-readonly/
+.pytest_cache/
+.ruff_cache/
 
 # --- 爬取的第三方数据 ---
 **/data/crawled/kkdaxue_all.json

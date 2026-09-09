@@ -4,11 +4,12 @@ Agent 对话 API
 每个 Agent 有独立的系统提示词，LLM驱动回复，无 LLM 时降级到语料库。
 支持 SSE 流式输出（/stream）和普通 JSON 回复（/）。
 """
+import json
+from typing import List
+
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional, List
-import json
 
 from ..utils.api_key import is_placeholder_api_key
 
@@ -177,8 +178,8 @@ def _build_llm_messages(agent_id: str, message: str, history: List[dict]) -> Lis
 def _get_llm_response(agent_id: str, message: str, history: List[dict]) -> str:
     """LLM 驱动的回复（假 key 直接走降级）"""
     try:
-        from ..utils.llm_client import LLMClient
         from ..config import Config
+        from ..utils.llm_client import LLMClient
         if is_placeholder_api_key(Config.LLM_API_KEY):
             return ""
         client = LLMClient()

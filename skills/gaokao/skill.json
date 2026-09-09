@@ -1,0 +1,88 @@
+{
+  "name": "verify-admission-policy",
+  "description": "高考垂直示例:核实某高校招生章程/录取规则的关键条款(调档比例、专业级差、体检限制、单科要求等),以教育部阳光高考平台与院校官方本科招生网原文为准,通道②(用户已在该校章程页)与通道③(多源查证)双形态,证据逐条落库。",
+  "version": "2.0.0",
+
+  "intents": [
+    {
+      "trigger_examples": [
+        "帮我核实一下武大今年招生章程里的专业级差是多少",
+        "这页章程里写着调档比例不超过 105%,是真的吗?",
+        "查查华科招生章程对色盲考生报计算机有没有限制"
+      ],
+      "channel": "page_qa",
+      "effort": "low",
+      "confidence_hint": 0.75
+    },
+    {
+      "trigger_examples": [
+        "把北大和清华今年招生章程的退档条款都查一遍,逐条核对",
+        "我要确认这几所学校的录取规则原文,给我逐条证据",
+        "逐校核对今年招生章程里对加分认可的表述,列出差异"
+      ],
+      "channel": "deep_research",
+      "effort": "high",
+      "confidence_hint": 0.8
+    }
+  ],
+
+  "strategy": {
+    "plan": {
+      "overview": "章程核实的证据金标准是:教育部阳光高考平台备案的章程原文 + 院校官方本科招生网发布的同一文件,二者互证。通道②形态:用户已在校方章程页,只读快照定位条款并解释;通道③形态:专用标签多源检索(阳光高考平台 → 院校官方招生网 → 省考试院转载),逐条款取原文落库。任何条款结论必须落在官方原文 quote 上;省级适用差异(同一章程不同省规则不同)必须显式标注。",
+      "phases": [
+        {
+          "phase": "1 条款结构化",
+          "guidance": "把问题拆成待核条款清单:院校名 + 年份 + 条款类别(调档比例/专业级差/加分认可/体检限制/单科要求/退档规则)+ 用户所在省份(影响适用版本;未提供时先问一次,≤4 选项:常用省份 chips)。",
+          "tools": []
+        },
+        {
+          "phase": "2A 通道②只读核实(用户已在章程页)",
+          "guidance": "browser_snapshot(activeTab)取当前章程页 → browser_find_in_snapshot 按条款关键词(如'级差''调档''105%')定位 → 逐条给出原文引用与白话解释;用户当前页不是官方域名的章程原文时,明确提示'此页非官方原文,建议以阳光高考平台备案版为准',不直接认定。",
+          "tools": ["browser_snapshot", "browser_find_in_snapshot"]
+        },
+        {
+          "phase": "2B 通道③多源核实",
+          "guidance": "browser_new_tab 专用标签 → 依序检索:阳光高考平台备案章程 → 院校官方本科招生网 → 省考试院转载(旁证)。每源 browser_extract(markdown)取章程全文相关段落,自动落库拿 evidence_id;同条款跨源原文逐句比对,冲突时两条都落库并在结论呈现。",
+          "tools": ["browser_new_tab", "browser_navigate", "browser_fill", "browser_press_key", "browser_snapshot", "browser_find_in_snapshot", "browser_extract", "browser_wait"]
+        },
+        {
+          "phase": "3 裁定与风险提示",
+          "guidance": "每条条款输出:官方原文引用 [E:ev_xxx] + 白话解释 + 适用省份 + 来源层级(官方备案/校网/转载)。涉及体检/单科等可能影响录取的限制条款,单独列'风险条款'区块并建议考生咨询院校招办电话确认(章程里通常有)。",
+          "tools": []
+        }
+      ],
+      "invariants": [
+        "通道②只读当前页,零写动作、不落库;通道③一切动作在专用后台标签",
+        "章程结论必须绑定官方原文 quote;自媒体解读、培训机构的'内部说法'只能作线索,不得作为裁定依据",
+        "跨源冲突时如实呈现两条原文,不擅自抹平;年份错配(如拿去年章程答今年问题)视为无效证据",
+        "省级适用差异必须显式输出;不知道用户省份且条款分省不同时,先澄清再裁定"
+      ]
+    },
+    "verification_rules": [
+      { "after": "browser_navigate(通道③)", "check": "落在教育部阳光高考平台或院校官方域名(gaokao.chsi.com.cn / 校方本科招生网);培训/自媒体站点仅作线索页,不落 source_quality 高档" },
+      { "after": "browser_extract", "check": "content 含目标条款关键词句;章程年份与目标年份一致(页面标题/正文中年份匹配);每条结论句能定位到 quote 原句" },
+      { "after": "browser_find_in_snapshot(通道②)", "check": "命中行上下文(±1 行)确为条款正文而非目录/广告;命中 0 条时改用同义词('专业分数级差'/'级差分')再查,两轮 0 命中即如实说明该页无此条款" },
+      { "after": "落库(通道③)", "check": "每条 evidence_id 有效;source_quality 标注:阳光高考平台/校方官网=official,省考试院=authoritative,其他=community/unknown" }
+    ],
+    "failure_recovery": [
+      { "condition": "阳光高考平台检索无该校/该年章程", "action": "改走院校官方本科招生网站内检索(browser_fill+browser_press_key);仍无则裁定'官方原文未检索到',列出已查渠道,不引用二手解读充当章程" },
+      { "condition": "章程页为图片版/PDF,extract 失败", "action": "browser_snapshot(full) 文本口径尝试;仍失败则告知用户该版本无法机器核读,请用户粘贴相关段落文本走通道②口径,不 OCR 猜字" },
+      { "condition": "不同省份适用条款不同而用户未提供省份", "action": "一次澄清(原则 6);无法澄清时输出全国通用条款并显式列出'分省差异未核实'项" },
+      { "condition": "反爬/登录墙", "action": "不绕过;换省考试院或权威转载渠道并下调 source_quality 标注;全被拦截则中止并说明" },
+      { "condition": "REF_STALE / SPA 未加载", "action": "重新 snapshot 取新 ref;browser_wait(until=selector) 等正文区块,两轮失败跳过该源并说明" }
+    ],
+    "safety": {
+      "write_level": "low",
+      "targets_allowed": ["activeTab", "newTab"]
+    }
+  },
+
+  "evidence_policy": {
+    "save": true,
+    "channel_hint": "deep_research",
+    "fields": ["url", "title", "quote", "locator", "source_quality", "task_id", "raw_ref"],
+    "source_quality_hint": "official"
+  },
+
+  "tools": ["browser_snapshot", "browser_find_in_snapshot", "browser_extract", "browser_new_tab", "browser_navigate", "browser_close_tab", "browser_fill", "browser_press_key", "browser_wait", "browser_screenshot"]
+}

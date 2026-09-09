@@ -1,9 +1,9 @@
 """
 日志配置模块（继承自MiroFish）
 """
+import logging
 import os
 import sys
-import logging
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 

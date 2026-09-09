@@ -2,7 +2,6 @@
 文件解析工具（继承自MiroFish）
 支持PDF、Markdown、TXT文件的文本提取
 """
-import os
 from pathlib import Path
 from typing import List
 

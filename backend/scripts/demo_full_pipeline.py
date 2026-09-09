@@ -7,7 +7,9 @@
 
 运行: python scripts/demo_full_pipeline.py --mode fallback
 """
-import sys, os
+import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 if sys.platform == 'win32':
@@ -19,18 +21,24 @@ import argparse
 import time
 from datetime import datetime
 
-from app.services.session_manager import (
-    SessionManager, Session, UserProfile, SessionStatus,
-)
-from app.services.task_scheduler import TaskScheduler, PipelineDAG
-from app.services.graph_service import KnowledgeGraph
 from app.agents import (
-    AgentContext, UserConfig, ProfessionFeatures,
-    Agent1OfficialHunter, Agent2WordOfMouth, Agent3FreshnessDog,
-    Agent4ConflictDetective, Agent5TrendProphet, FusionAlchemist,
+    Agent1OfficialHunter,
+    Agent2WordOfMouth,
+    Agent3FreshnessDog,
+    Agent4ConflictDetective,
+    Agent5TrendProphet,
+    AgentContext,
+    FusionAlchemist,
+    UserConfig,
 )
+from app.services.graph_service import KnowledgeGraph
+from app.services.session_manager import (
+    Session,
+    SessionManager,
+    UserProfile,
+)
+from app.services.task_scheduler import PipelineDAG, TaskScheduler
 from app.utils.llm_client import LLMClient
-
 
 # ============================================
 # 工具函数
@@ -177,22 +185,22 @@ def main():
             results = session.fusion_results
             top3 = results[:3]
             lines = [
-                f"# Moirca 志愿推荐报告",
-                f"",
-                f"## 用户画像",
+                "# Moirca 志愿推荐报告",
+                "",
+                "## 用户画像",
                 f"- 分数: {profile.score}/{profile.full_mark}",
                 f"- 省份: {profile.province}",
                 f"- 偏好: {', '.join(profile.keywords)}",
                 f"- 家庭: {profile.family_bg}",
-                f"",
-                f"## Top 3 推荐",
+                "",
+                "## Top 3 推荐",
             ]
             for r in top3:
                 lines.append(f"### {r['rank']}. {r['profession_name']} ({r['match_score']}分)")
                 lines.append(f"等级: {r['tier']}")
                 lines.append(f"基础分: {r['base_score']} | 叙事匹配: {r['factors']['narrative_match']:.3f}")
                 breakdown = r.get('breakdown', {})
-                lines.append(f"Agent评分: " + ", ".join(
+                lines.append("Agent评分: " + ", ".join(
                     f"{name}={detail['raw_score']:.0f}" for name, detail in breakdown.items()
                 ))
                 if r.get('conflict_severity'):
@@ -228,7 +236,7 @@ def main():
     print_separator(f"执行结果 (耗时 {elapsed:.1f}s)")
 
     # 步骤耗时
-    print(f"\n  步骤耗时:")
+    print("\n  步骤耗时:")
     for step in result.steps:
         icon = "✓" if step.status.value == "completed" else "✗"
         print(f"    {icon} {step.step_name}: {step.status.value} ({step.duration_ms:.0f}ms)")
@@ -260,7 +268,7 @@ def main():
         (f"Agent 1-5 调研 ({args.mode}模式)", total_outputs > 0),
         ("Agent 6 融合计算", len(result.fusion_results) > 0),
         ("Agent 7 报告生成", bool(result.report)),
-        (f"总耗时 < 10s", elapsed < 10),
+        ("总耗时 < 10s", elapsed < 10),
         ("排除规则生效", not any(
             r['profession_name'] in ["临床医学"] for r in result.fusion_results
         )),

@@ -2,12 +2,12 @@
 SQLite 数据库管理（MVP阶段）
 后续迁移到 PostgreSQL + pgvector
 """
-import sqlite3
-import os
 import json
+import os
+import sqlite3
 from pathlib import Path
-from ..config import Config
 
+from ..config import Config
 
 project_root = Path(__file__).resolve().parents[3]
 
@@ -203,6 +203,10 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_public_scorelines_school ON public_scorelines(school);
         CREATE INDEX IF NOT EXISTS idx_public_scorelines_major ON public_scorelines(major);
     """)
+
+    # 证据表(CONTRACT §c.1,AGENT_02 唯一真源)——仅挂载建表,勿动上方既有逻辑
+    from .evidence import EVIDENCE_SCHEMA_SQL
+    cursor.executescript(EVIDENCE_SCHEMA_SQL)
 
     # 如果公开语料表为空，则从本地抓取文件导入
     cursor.execute("SELECT COUNT(*) FROM kkdaxue_posts")

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { motion } from 'framer-motion';
-import { MessageCircleQuestion, Send, RefreshCw, UserRound } from 'lucide-react';
+import { MessageCircleQuestion, Send, RefreshCw } from 'lucide-react';
 import { askInterview } from '@/api/interview';
 
 const AGENTS = [
@@ -47,23 +47,23 @@ export default function InterviewPanel() {
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-50">
-      <div className="h-10 shrink-0 px-3 border-b border-slate-200 flex items-center justify-between bg-white">
-        <div className="flex items-center gap-2 text-slate-700">
-          <MessageCircleQuestion className="w-4 h-4 text-blue-500" />
+    <div className="h-full flex flex-col bg-card">
+      <div className="h-10 shrink-0 px-3 border-b border-border flex items-center justify-between bg-card">
+        <div className="flex items-center gap-2 text-foreground">
+          <MessageCircleQuestion className="w-4 h-4 text-muted-foreground" />
           <span className="text-sm font-medium">Agent 采访 / 问卷</span>
         </div>
       </div>
 
-      <div className="p-3 border-b border-slate-200 bg-white space-y-3">
+      <div className="p-4 border-b border-border bg-card space-y-3">
         <div>
-          <div className="text-xs text-slate-500 mb-1">选择 Agent</div>
+          <div className="text-xs text-muted-foreground mb-1.5">选择 Agent</div>
           <div className="flex flex-wrap gap-2">
             {AGENTS.map(agent => (
               <button
                 key={agent.id}
                 onClick={() => setAgentName(agent.id)}
-                className={`px-2.5 py-1 rounded-full text-xs transition-colors ${agentName === agent.id ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                className={`rounded-sm px-2.5 py-1 text-xs transition-colors ${agentName === agent.id ? 'bg-primary text-primary-foreground' : 'border border-border bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground'}`}
               >
                 {agent.name}
               </button>
@@ -72,60 +72,62 @@ export default function InterviewPanel() {
         </div>
 
         <div>
-          <div className="text-xs text-slate-500 mb-1">问题</div>
+          <div className="text-xs text-muted-foreground mb-1.5">问题</div>
           <textarea
             value={question}
             onChange={e => setQuestion(e.target.value)}
-            className="w-full min-h-24 rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            className="w-full min-h-24 rounded-md border border-input bg-card px-3 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 transition-colors"
             placeholder="输入要追问的问题"
           />
         </div>
 
         <motion.button
-          whileHover={{ scale: 1.01 }}
-          whileTap={{ scale: 0.99 }}
           onClick={handleAsk}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-medium hover:bg-blue-600 disabled:opacity-50"
+          className="w-full h-9 flex items-center justify-center gap-2 rounded-md bg-primary text-primary-foreground text-[13px] font-medium hover:bg-primary/90 shadow-xs transition-colors disabled:opacity-50"
         >
           {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           发起采访
         </motion.button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        <div className="rounded-xl border border-slate-200 bg-white p-3">
-          <div className="flex items-center gap-2 mb-2 text-slate-700">
-            <UserRound className="w-4 h-4 text-blue-500" />
-            <span className="text-sm font-medium">上下文快照</span>
-          </div>
-          <div className="text-xs text-slate-500 space-y-1">
-            <div>推荐：{state.recommendMeta ? '已生成' : '未生成'}</div>
-            <div>文档：{state.activeDocumentId ? '已绑定上传文档' : '无'}</div>
-            <div>报告：{state.activeReportId || '无'}</div>
+      <div className="flex-1 overflow-y-auto thin-scrollbar p-4">
+        {/* 上下文快照(hairline 分区,dl 键值行) */}
+        <div>
+          <div className="eyebrow mb-1">上下文快照</div>
+          <div className="text-xs">
+            <div className="flex justify-between border-b border-border/50 py-1.5"><span className="text-muted-foreground">推荐</span><span className="tabular-nums text-foreground">{state.recommendMeta ? '已生成' : '未生成'}</span></div>
+            <div className="flex justify-between border-b border-border/50 py-1.5"><span className="text-muted-foreground">文档</span><span className="text-foreground">{state.activeDocumentId ? '已绑定上传文档' : '无'}</span></div>
+            <div className="flex justify-between py-1.5"><span className="text-muted-foreground">报告</span><span className="tabular-nums text-foreground truncate ml-4">{state.activeReportId || '无'}</span></div>
           </div>
         </div>
 
-        {error && <div className="text-xs text-red-500">{error}</div>}
+        {error && <div className="mt-3 text-xs text-destructive">{error}</div>}
 
         {answer && (
-          <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <div className="text-xs font-medium text-slate-500 mb-2">回答</div>
-            <div className="text-sm leading-7 text-slate-700 whitespace-pre-wrap">{answer}</div>
-          </div>
+          <>
+            <div className="hr-hairline my-3" />
+            <div>
+              <div className="eyebrow mb-1.5">回答</div>
+              <div className="text-[13px] leading-[1.75] text-foreground whitespace-pre-wrap">{answer}</div>
+            </div>
+          </>
         )}
 
         {followUps.length > 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-3">
-            <div className="text-xs font-medium text-slate-500 mb-2">继续追问</div>
-            <div className="space-y-2">
-              {followUps.map((item, idx) => (
-                <button key={idx} onClick={() => setQuestion(item)} className="w-full text-left text-xs px-3 py-2 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-700">
-                  {item}
-                </button>
-              ))}
+          <>
+            <div className="hr-hairline my-3" />
+            <div>
+              <div className="eyebrow mb-1">继续追问</div>
+              <div className="divide-y divide-border">
+                {followUps.map((item, idx) => (
+                  <button key={idx} onClick={() => setQuestion(item)} className="list-row h-9 w-full text-left text-xs text-muted-foreground hover:text-foreground">
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>

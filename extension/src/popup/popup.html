@@ -3,53 +3,142 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Moirca WebBridge</title>
+  <title>WebBridge</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { width: 320px; font-family: -apple-system, sans-serif; padding: 16px; }
-    .status { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .status-dot.connected { background: #22c55e; }
-    .status-dot.disconnected { background: #ef4444; }
-    .status-text { font-size: 13px; color: #666; }
-    h1 { font-size: 16px; margin-bottom: 8px; }
-    .info { font-size: 12px; color: #999; margin-bottom: 12px; }
-    .tools { display: flex; flex-wrap: wrap; gap: 6px; }
-    .tool { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; padding: 6px 10px; font-size: 11px; }
-    .footer { margin-top: 16px; font-size: 11px; color: #999; text-align: center; }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { width: 360px; min-height: 440px; font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; font-size: 13px; color: #1f2937; background: #f8fafc; }
+    header { padding: 14px 16px 12px; background: linear-gradient(135deg, #2563eb, #06b6d4); color: #fff; }
+    header h1 { font-size: 15px; font-weight: 700; }
+    header p { font-size: 11px; opacity: .85; margin-top: 2px; }
+    main { padding: 12px 16px 16px; }
+    .row { margin-bottom: 10px; }
+    label { display: block; font-size: 11px; color: #64748b; margin-bottom: 4px; }
+    select, textarea, input { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 13px; background: #fff; }
+    textarea { resize: vertical; min-height: 72px; font-family: inherit; }
+    .btn { padding: 10px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: filter .15s; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .btn-primary { display: block; width: 100%; background: #2563eb; color: #fff; }
+    .btn:hover { filter: brightness(1.05); }
+    .hint { font-size: 11px; color: #94a3b8; margin-top: 6px; line-height: 1.5; }
+    .answer-head { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+    .answer-head span { font-size: 11px; color: #64748b; }
+    .btn-copy { padding: 4px 10px; font-size: 11px; font-weight: 600; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #2563eb; cursor: pointer; }
+    .btn-copy:hover { background: #eff6ff; }
+    .answer { margin-top: 6px; padding: 10px 12px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; line-height: 1.65; max-height: 240px; overflow-y: auto; }
+    .answer a { color: #2563eb; }
+    .answer code { background: #f1f5f9; padding: 1px 4px; border-radius: 4px; font-size: 12px; }
+    .answer strong { color: #0f172a; }
+    .meta { font-size: 11px; color: #94a3b8; margin-top: 6px; }
+    .error { color: #dc2626; font-size: 12px; margin-top: 8px; white-space: pre-wrap; }
+    #status { font-size: 11px; color: #64748b; margin-top: 8px; min-height: 15px; }
+    details { margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
+    details summary { font-size: 11px; color: #94a3b8; cursor: pointer; user-select: none; }
+    .settings-row { display: flex; gap: 6px; margin-top: 8px; }
+    .settings-row input { flex: 1; font-size: 12px; }
+    .btn-sm { padding: 8px 10px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; cursor: pointer; }
+    .btn-sm:hover { background: #f1f5f9; }
+    #pingResult { font-size: 11px; margin-top: 6px; min-height: 15px; }
+    .ok { color: #16a34a; }
+    .bad { color: #dc2626; }
+    /* pro 视图 */
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+    .card h2 { font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 6px; }
+    .kv { font-size: 12px; line-height: 1.7; color: #1f2937; word-break: break-all; }
+    .swatch { display: inline-block; width: 18px; height: 18px; border-radius: 4px; border: 1px solid #e2e8f0; margin-right: 6px; vertical-align: middle; }
+    #shotStatus { font-size: 11px; color: #64748b; margin-top: 6px; min-height: 15px; }
   </style>
 </head>
 <body>
-  <div class="status">
-    <div class="status-dot" id="statusDot"></div>
-    <span class="status-text" id="statusText">检查连接中...</span>
-  </div>
-  <h1>Moirca WebBridge</h1>
-  <p class="info">AI Agent 浏览器操控桥接插件</p>
-  <div class="tools">
-    <div class="tool">navigate</div>
-    <div class="tool">click</div>
-    <div class="tool">fill</div>
-    <div class="tool">snapshot</div>
-    <div class="tool">screenshot</div>
-    <div class="tool">scroll</div>
-    <div class="tool">evaluate</div>
-  </div>
-  <div class="footer">v1.0.0 · Connected to Daemon</div>
+  <header>
+    <h1 id="title">WebBridge</h1>
+    <p id="subtitle">AI Agent 浏览器桥 · 双模式构建</p>
+  </header>
+  <main>
+    <!-- readonly 形态:页面只读问答(通道②) -->
+    <div id="readonlyView" style="display:none">
+      <div class="row">
+        <label>解读视角(Agent)</label>
+        <select id="agent">
+          <option value="master" selected>主控</option>
+          <option value="data">数据</option>
+          <option value="risk">风险</option>
+          <option value="zhang">张雪峰</option>
+          <option value="senior">学长</option>
+          <option value="workplace">职场</option>
+          <option value="parents">爸妈</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>你的问题</label>
+        <textarea id="question" placeholder="例如:这个专业 610 分能上吗?招生计划有什么变化?"></textarea>
+      </div>
+      <div class="row">
+        <button id="ask" class="btn btn-primary">解读当前页面</button>
+      </div>
+      <div class="hint">
+        提示:先在网页选中一段文字再点按钮,会优先解读选中内容;没选中则解读整页正文。只读模式不上传 DOM/Cookie,不执行任何浏览器动作。
+      </div>
+      <div class="answer-head">
+        <span>解读结果</span>
+        <button id="copy" class="btn-copy" disabled>复制</button>
+      </div>
+      <div id="answer" class="answer">解读结果会显示在这里。</div>
+      <div id="meta" class="meta"></div>
+      <div id="status"></div>
+      <div id="error" class="error"></div>
+      <details>
+        <summary>后端设置(readonly 模式)</summary>
+        <div class="settings-row">
+          <input id="apiBase" placeholder="http://localhost:8000" spellcheck="false">
+          <button id="saveApi" class="btn-sm">保存并测试</button>
+        </div>
+        <div id="pingResult"></div>
+      </details>
+    </div>
 
-  <script>
-    // 检查 WebSocket 连接状态
-    chrome.storage.local.get(['wsStatus'], (result) => {
-      const dot = document.getElementById('statusDot');
-      const text = document.getElementById('statusText');
-      if (result.wsStatus === 'connected') {
-        dot.classList.add('connected');
-        text.textContent = '已连接到 Daemon';
-      } else {
-        dot.classList.add('disconnected');
-        text.textContent = '未连接 - 请启动 Daemon';
-      }
-    });
-  </script>
+    <!-- pro 形态:daemon 连接状态 -->
+    <div id="proView" style="display:none">
+      <div class="card">
+        <h2>连接状态(daemon)</h2>
+        <div id="modeLabel" class="kv">pro 模式</div>
+        <div id="connStatus" class="kv">daemon: 检测中…</div>
+      </div>
+      <div class="card">
+        <h2>配对 token</h2>
+        <div class="settings-row">
+          <input id="wsToken" placeholder="粘贴 daemon 启动时打印的一次性 token" spellcheck="false">
+          <button id="saveToken" class="btn-sm">保存并重连</button>
+        </div>
+        <div id="tokenStatus"></div>
+        <p class="hint" style="margin-top:8px">
+          token 在 daemon 每次启动时打印于终端,同时写入 daemon 目录的 .bridge-token(0600)。
+          保存后扩展会立即用新 token 重新握手。
+        </p>
+      </div>
+      <div class="card">
+        <h2>截图分析</h2>
+        <button id="analyzeShot" class="btn-sm" style="width:100%">截图分析当前页</button>
+        <div id="shotMeta" class="kv" style="margin-top:8px"></div>
+        <div id="shotSwatches" style="margin-top:6px"></div>
+        <div id="shotSummary" class="kv" style="margin-top:6px"></div>
+        <div id="shotStatus"></div>
+        <p class="hint" style="margin-top:8px">
+          分析在扩展后台本机完成:仅截取当前活动页并统计亮度/彩色度/主色等指标,图像数据不离开本机;
+          指标经本地网关(daemon)上报留档。截图只供人复核,禁止作为 AI 动作依据。
+        </p>
+      </div>
+      <div class="card">
+        <h2>浏览器控制</h2>
+        <div id="managedTabs" class="kv"></div>
+        <p class="hint" style="margin-top:8px">
+          浏览器动作由 AI 客户端经 MCP 工具驱动(browser_navigate / browser_snapshot / browser_click …),
+          多步操作只在新开的托管标签执行,绝不改动你当前活动的标签页。attach 时 Chrome 顶部会出现
+          "WebBridge 正在调试此浏览器"提示,扩展图标会显示 DBG 徽标。
+        </p>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="./popup.js"></script>
 </body>
 </html>

@@ -9,30 +9,36 @@
   POST /async         异步推荐（立即返回 job_id）
   GET  /status/{id}   查询异步任务状态
 """
-from fastapi import APIRouter
-from pydantic import BaseModel
-from typing import Optional, List
-from datetime import datetime
+import hashlib
+import hmac
 import json
 import os
 import threading
-import uuid
 import time
-import hashlib
-import hmac
+import uuid
+from datetime import datetime
+from typing import List, Optional
 
+from fastapi import APIRouter
+from pydantic import BaseModel
+
+from ..agents import (
+    Agent1OfficialHunter,
+    Agent2WordOfMouth,
+    Agent3FreshnessDog,
+    Agent4ConflictDetective,
+    Agent5TrendProphet,
+)
 from ..agents.agent6_fusion_alchemist import (
-    FusionAlchemist, UserConfig, AgentOutput,
+    AgentOutput,
+    FusionAlchemist,
+    UserConfig,
 )
 from ..agents.base import AgentContext
-from ..agents import (
-    Agent1OfficialHunter, Agent2WordOfMouth, Agent3FreshnessDog,
-    Agent4ConflictDetective, Agent5TrendProphet,
-)
-from ..utils.api_key import is_placeholder_api_key
-from ..services.graph_service import KnowledgeGraph
 from ..services.decision_tree import DecisionTreeEngine
+from ..services.graph_service import KnowledgeGraph
 from ..services.scoreline_service import scoreline_service
+from ..utils.api_key import is_placeholder_api_key
 from ..utils.logger import get_logger
 
 router = APIRouter()
@@ -174,8 +180,8 @@ def _get_llm_client():
     占位 key 判定统一走 app/utils/api_key.py（前缀匹配，避免误伤含 "test" 的真实 key）。
     """
     try:
-        from ..utils.llm_client import LLMClient
         from ..config import Config
+        from ..utils.llm_client import LLMClient
         if is_placeholder_api_key(Config.LLM_API_KEY):
             logger.info("LLM_API_KEY 为占位/空值，推荐走规则降级")
             return None
@@ -202,7 +208,7 @@ def _run_agent_research(
       - 对每个 future.result(timeout=AGENT_RESEARCH_TIMEOUT) 施加真实超时，
         未完成的任务取消并回退规则评分。
     """
-    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+    from concurrent.futures import ThreadPoolExecutor
 
     llm = _get_llm_client()
 

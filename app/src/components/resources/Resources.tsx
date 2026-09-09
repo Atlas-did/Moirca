@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Database, CheckCircle, AlertTriangle, Lock, RefreshCw, Terminal } from 'lucide-react';
+import { RefreshCw, Terminal } from 'lucide-react';
 
 const DATA_SOURCES = [
   {
@@ -65,96 +65,78 @@ export default function ResourcesPanel() {
   };
 
   return (
-    <div className="h-full flex flex-col p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-slate-800 mb-1">数据资源管理</h2>
-        <p className="text-sm text-slate-500">管理 Moirca 系统的数据源，确保数据及时更新</p>
+    <div className="h-full flex flex-col p-5 overflow-y-auto thin-scrollbar">
+      {/* 页首(v2 §5.2 统一骨架:T0 标题 + T0d 说明 + hairline) */}
+      <div className="mb-4 border-b border-border pb-3">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground mb-1">数据资源管理</h2>
+        <p className="text-xs text-muted-foreground">管理 Moirca 系统的数据源，确保数据及时更新</p>
       </div>
 
-      {/* Data Source Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+      {/* 数据源名单(v2 §5.10:全屏唯一一张卡,hairline 行列表,状态用一枚色点) */}
+      <div className="panel-card mb-5 px-4">
         {DATA_SOURCES.map((source, idx) => (
-          <motion.div
+          <div
             key={source.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition-shadow"
+            className={`flex items-center gap-3 py-3 ${idx < DATA_SOURCES.length - 1 ? 'border-b border-border' : ''}`}
           >
-            <div className="flex items-start justify-between mb-3">
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                source.status === 'ready' ? 'bg-green-50' :
-                source.status === 'update' ? 'bg-yellow-50' : 'bg-gray-50'
-              }`}>
-                <Database className={`w-5 h-5 ${
-                  source.status === 'ready' ? 'text-green-500' :
-                  source.status === 'update' ? 'text-yellow-500' : 'text-gray-400'
-                }`} />
+            <span
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                source.status === 'ready'
+                  ? 'bg-[hsl(var(--success))]'
+                  : source.status === 'update'
+                    ? 'bg-[hsl(var(--warning))]'
+                    : 'bg-muted-foreground'
+              }`}
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-medium text-foreground">{source.name}</div>
+              <div className="text-xs text-muted-foreground mt-0.5 truncate">{source.desc}</div>
+            </div>
+            <div className="shrink-0 text-right">
+              <div className="text-sm font-semibold tabular-nums text-foreground">
+                {source.count.toLocaleString()}
+                <span className="ml-1 text-[11px] font-normal text-muted-foreground">条记录</span>
               </div>
-              {source.status === 'ready' && <CheckCircle className="w-4 h-4 text-green-400" />}
-              {source.status === 'update' && <AlertTriangle className="w-4 h-4 text-yellow-400" />}
-              {source.status === 'private' && <Lock className="w-4 h-4 text-gray-400" />}
+              <div className="text-[11px] tabular-nums text-muted-foreground">更新于 {source.lastUpdate}</div>
             </div>
-
-            <h3 className="font-medium text-slate-800 mb-1">{source.name}</h3>
-            <p className="text-xs text-slate-500 mb-3">{source.desc}</p>
-
-            <div className="flex items-baseline gap-1 mb-2">
-              <span className="text-2xl font-bold text-slate-800">{source.count.toLocaleString()}</span>
-              <span className="text-xs text-slate-400">条记录</span>
-            </div>
-
-            {/* Progress bar */}
-            <div className="w-full h-1.5 bg-slate-100 rounded-full mb-3">
-              <div className={`h-full rounded-full ${
-                source.status === 'ready' ? 'bg-green-400' :
-                source.status === 'update' ? 'bg-yellow-400' : 'bg-gray-300'
-              }`} style={{ width: source.status === 'ready' ? '100%' : source.status === 'update' ? '70%' : '40%' }} />
-            </div>
-
-            <div className="flex gap-2">
-              <button className="flex-1 text-xs bg-slate-50 hover:bg-slate-100 text-slate-600 py-1.5 rounded-md transition-colors">
+            <div className="flex shrink-0 gap-1">
+              <button className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
                 查看样本
               </button>
-              <button className="flex-1 text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 py-1.5 rounded-md transition-colors">
+              <button className="h-7 px-2 text-xs text-primary hover:text-primary/80 transition-colors">
                 更新数据
               </button>
             </div>
-          </motion.div>
+          </div>
         ))}
       </div>
 
-      {/* Terminal Logs */}
-      <div className="flex-1 bg-slate-900 rounded-xl overflow-hidden flex flex-col min-h-[200px]">
-        <div className="h-9 bg-slate-800 border-b border-slate-700 flex items-center justify-between px-3">
+      {/* Terminal Logs(规范 §5.7:终端恒为深色,与画布同域) */}
+      <div className="panel-card flex-1 overflow-hidden flex flex-col min-h-[200px]">
+        <div className="h-9 shrink-0 bg-[#101720] border-b border-white/10 flex items-center justify-between px-3">
           <div className="flex items-center gap-2">
-            <Terminal className="w-3.5 h-3.5 text-green-400" />
-            <span className="text-xs text-slate-300">数据采集日志</span>
+            <Terminal className="w-3.5 h-3.5 text-[#2F8A6B]" />
+            <span className="text-xs text-[#B9C2CF]">数据采集日志</span>
           </div>
           <button
             onClick={handleCrawl}
             disabled={isCrawling}
-            className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300 disabled:opacity-50 transition-colors"
+            className="flex items-center gap-1 text-xs text-[#2F8A6B] hover:text-[#3FA07F] disabled:opacity-50 transition-colors"
           >
             <RefreshCw className={`w-3 h-3 ${isCrawling ? 'animate-spin' : ''}`} />
             {isCrawling ? '采集中...' : '一键爬取'}
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-3 font-mono text-xs space-y-1">
+        <div className="flex-1 overflow-y-auto thin-scrollbar bg-[#141C29] p-3 font-mono text-[11px] leading-relaxed space-y-1">
           {logs.map((log, idx) => (
             <motion.div
               key={idx}
-              initial={{ opacity: 0, x: -10 }}
+              initial={{ opacity: 0, x: -6 }}
               animate={{ opacity: 1, x: 0 }}
               className={`${
-                log.includes('[系统]') ? 'text-blue-400' :
-                log.includes('[API]') ? 'text-purple-400' :
-                log.includes('[爬虫]') ? 'text-green-400' :
-                log.includes('[反爬]') ? 'text-yellow-400' :
-                log.includes('[Playwright]') ? 'text-cyan-400' :
-                log.includes('[清洗]') ? 'text-orange-400' :
-                log.includes('[SQLite]') ? 'text-pink-400' :
-                'text-slate-300'
+                log.includes('[系统]') || log.includes('[SQLite]') ? 'text-[#2F8A6B]' :
+                log.includes('[反爬]') ? 'text-[#D9A13B]' :
+                'text-[#B9C2CF]'
               }`}
             >
               {log}
@@ -164,7 +146,7 @@ export default function ResourcesPanel() {
             <motion.div
               animate={{ opacity: [0.5, 1, 0.5] }}
               transition={{ duration: 1.5, repeat: Infinity }}
-              className="text-green-400"
+              className="text-[#2F8A6B]"
             >
               _
             </motion.div>

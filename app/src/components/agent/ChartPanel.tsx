@@ -19,6 +19,15 @@ const salaryData = [
 
 type ChartType = 'score' | 'rank' | 'salary';
 
+const TOOLTIP_STYLE = {
+  backgroundColor: 'hsl(var(--popover))',
+  border: '1px solid hsl(var(--border))',
+  borderRadius: '6px',
+  fontSize: '12px',
+  color: 'hsl(var(--popover-foreground))',
+  boxShadow: '0 2px 8px hsl(var(--foreground) / 0.08)',
+} as const;
+
 export default function ChartPanel() {
   const { state } = useApp();
   const [chartType, setChartType] = useState<ChartType>('score');
@@ -28,11 +37,11 @@ export default function ChartPanel() {
     : '南昌大学';
 
   return (
-    <div className="h-full flex flex-col p-3">
-      <h3 className="text-sm font-medium text-white mb-3">{schoolName} - 数据分析</h3>
+    <div className="h-full flex flex-col p-4">
+      <h3 className="panel-title mb-3">{schoolName} - 数据分析</h3>
 
       {/* Chart type tabs */}
-      <div className="flex gap-1 mb-3">
+      <div className="flex items-center gap-1 border-b border-border mb-3">
         {[
           { id: 'score' as ChartType, label: '分数线', icon: <TrendingUp className="w-3.5 h-3.5" /> },
           { id: 'rank' as ChartType, label: '位次', icon: <Users className="w-3.5 h-3.5" /> },
@@ -41,8 +50,10 @@ export default function ChartPanel() {
           <button
             key={t.id}
             onClick={() => setChartType(t.id)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
-              chartType === t.id ? 'bg-blue-500/20 text-blue-400' : 'text-slate-400 hover:bg-slate-700'
+            className={`flex items-center gap-1 px-2.5 h-8 border-b-2 -mb-px rounded-t-md text-xs font-medium transition-colors ${
+              chartType === t.id
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
             {t.icon}
@@ -56,44 +67,41 @@ export default function ChartPanel() {
         <ResponsiveContainer width="100%" height="100%">
           {chartType === 'salary' ? (
             <AreaChart data={salaryData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="range" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={11} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: '12px' }}
-              />
-              <Area type="monotone" dataKey="count" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="range" tickLine={false} axisLine={{ stroke: 'hsl(var(--border))' }} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: 'hsl(var(--muted-foreground))' }} cursor={{ stroke: 'hsl(var(--border))' }} />
+              <Area type="monotone" dataKey="count" stroke="hsl(var(--chart-1))" fill="hsl(var(--chart-1))" fillOpacity={0.12} strokeWidth={2} />
             </AreaChart>
           ) : (
             <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis dataKey="year" stroke="#94a3b8" fontSize={11} />
-              <YAxis stroke="#94a3b8" fontSize={11} />
-              <Tooltip
-                contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', fontSize: '12px' }}
-              />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="year" tickLine={false} axisLine={{ stroke: 'hsl(var(--border))' }} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+              <YAxis tickLine={false} axisLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
+              <Tooltip contentStyle={TOOLTIP_STYLE} labelStyle={{ color: 'hsl(var(--muted-foreground))' }} />
               <Line
                 type="monotone"
                 dataKey={chartType === 'score' ? 'score' : 'rank'}
-                stroke="#3b82f6"
+                stroke="hsl(var(--chart-1))"
                 strokeWidth={2}
-                dot={{ fill: '#3b82f6', r: 4 }}
-                activeDot={{ r: 6 }}
+                dot={{ fill: 'hsl(var(--chart-1))', r: 3, strokeWidth: 0 }}
+                activeDot={{ r: 5, strokeWidth: 2, stroke: 'hsl(var(--card))' }}
               />
             </LineChart>
           )}
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-3 grid grid-cols-3 gap-2">
+      <div className="mt-3 grid grid-cols-3 gap-3">
         {[
-          { label: '2024分数线', value: '590', unit: '分', color: 'text-blue-400' },
-          { label: '全省排名', value: '10800', unit: '名', color: 'text-green-400' },
-          { label: '平均薪资', value: '14.5', unit: '万/年', color: 'text-orange-400' },
+          { label: '2024分数线', value: '590', unit: '分', bar: 'hsl(var(--chart-1))' },
+          { label: '全省排名', value: '10800', unit: '名', bar: 'hsl(var(--chart-2))' },
+          { label: '平均薪资', value: '14.5', unit: '万/年', bar: 'hsl(var(--chart-3))' },
         ].map(s => (
-          <div key={s.label} className="bg-slate-700/50 rounded-lg p-2 text-center">
-            <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
-            <div className="text-[10px] text-slate-400">{s.label} <span className="text-slate-500">{s.unit}</span></div>
+          <div key={s.label} className="bg-card border border-border border-l-[3px] rounded-lg shadow-xs p-3 text-left"
+            style={{ borderLeftColor: s.bar }}>
+            <div className="text-xl font-semibold tabular-nums text-foreground">{s.value}</div>
+            <div className="text-xs text-muted-foreground">{s.label} <span className="text-muted-foreground/70">{s.unit}</span></div>
           </div>
         ))}
       </div>

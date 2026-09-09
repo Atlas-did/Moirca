@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import uvicorn
+
 from app import create_app
 from app.config import Config
 

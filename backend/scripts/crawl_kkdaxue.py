@@ -12,11 +12,11 @@ kkdaxue.com（框框大学）数据爬取脚本
   --mode crawl     : 抓取全量数据并导入SQLite（默认）
   --mode sample    : 只抓取前20条作为样本
 """
-import sys
-import os
-import json
-import time
 import argparse
+import json
+import os
+import sys
+import time
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -193,16 +193,16 @@ def analyze_posts(posts: list):
         if p["school"]:
             schools[p["school"]] = schools.get(p["school"], 0) + 1
 
-    print(f"\n  数据概览:")
+    print("\n  数据概览:")
     print(f"    总帖子数: {len(parsed)}")
     print(f"    涉及专业数: {len(majors)}")
     print(f"    涉及学校数: {len(schools)}")
 
-    print(f"\n  Top 10 热门专业:")
+    print("\n  Top 10 热门专业:")
     for major, count in sorted(majors.items(), key=lambda x: -x[1])[:10]:
         print(f"    {major}: {count} 条")
 
-    print(f"\n  Top 10 热门学校:")
+    print("\n  Top 10 热门学校:")
     for school, count in sorted(schools.items(), key=lambda x: -x[1])[:10]:
         print(f"    {school}: {count} 条")
 
@@ -253,7 +253,7 @@ def cmd_explore():
 def cmd_sample():
     """采样模式：抓取少量数据导入数据库"""
     api = KkdaxueAPI()
-    print(f"抓取前 20 条帖子...")
+    print("抓取前 20 条帖子...")
     posts = api.get_all_posts(page_size=20, max_pages=1)
     print(f"\n获取 {len(posts)} 条帖子")
 
@@ -266,11 +266,11 @@ def cmd_sample():
     print(f"已保存: {sample_path}")
 
     # 导入数据库
-    print(f"\n导入 SQLite...")
+    print("\n导入 SQLite...")
     import_to_sqlite(posts)
 
     api.close()
-    print(f"\n[OK] 采样完成！已证明爬虫可用。")
+    print("\n[OK] 采样完成！已证明爬虫可用。")
 
 
 def cmd_crawl():
@@ -294,11 +294,11 @@ def cmd_crawl():
     analyze_posts(posts)
 
     # 导入数据库
-    print(f"\n导入 SQLite...")
+    print("\n导入 SQLite...")
     import_to_sqlite(posts)
 
     api.close()
-    print(f"\n[OK] 全量爬取完成！")
+    print("\n[OK] 全量爬取完成！")
 
 
 def main():
@@ -309,7 +309,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print(f"kkdaxue.com（框框大学）数据爬取")
+    print("kkdaxue.com（框框大学）数据爬取")
     print(f"模式: {args.mode}")
     print(f"时间: {datetime.now().isoformat()}")
     print("=" * 60 + "\n")

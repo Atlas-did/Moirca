@@ -9,7 +9,7 @@ export default function Layout() {
   // Full-screen chat mode
   if (state.isChatFullScreen && state.leftNav === 'chat') {
     return (
-      <div className="h-screen w-screen flex bg-slate-50">
+      <div className="h-screen w-screen flex bg-background">
         <Sidebar />
         <LeftPanel />
       </div>
@@ -17,7 +17,7 @@ export default function Layout() {
   }
 
   return (
-    <div className="h-screen w-screen flex bg-slate-50 overflow-hidden">
+    <div className="h-screen w-screen flex bg-background overflow-hidden">
       {/* Left Nav Bar */}
       <Sidebar />
 

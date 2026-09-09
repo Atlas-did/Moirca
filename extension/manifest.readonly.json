@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "WebBridge (readonly)",
+  "description": "页面只读问答桥(最小权限:activeTab+scripting+storage,拒绝一切写命令)",
+  "version": "2.0.0",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "WebBridge 页面只读问答"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

@@ -9,7 +9,6 @@ from typing import Any, Dict, Optional
 from ..config import Config
 from ..utils.llm_client import LLMClient
 
-
 _DEFAULT_ONTOLOGY: Dict[str, Any] = {
     "domain": "gaokao_admission",
     "entity_types": [

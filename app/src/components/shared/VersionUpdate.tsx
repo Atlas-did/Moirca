@@ -88,7 +88,7 @@ export function VersionUpdateButton() {
       <button
         onClick={() => setShowModal(true)}
         disabled={state.isUpdating}
-        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-500 transition-colors disabled:opacity-50"
+        className="h-8 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
       >
         <RefreshCw className={`w-3.5 h-3.5 ${state.isUpdating ? 'animate-spin' : ''}`} />
         {state.isUpdating ? `更新中 ${state.versionUpdateProgress}%` : '刷新数据'}
@@ -102,35 +102,39 @@ export function VersionUpdateButton() {
             onClick={() => setShowModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }}
               onClick={e => e.stopPropagation()}
-              className="bg-white rounded-xl p-6 w-[400px] shadow-xl"
+              className="panel-card p-6 w-[400px] shadow-md"
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-medium text-slate-800">刷新数据</h3>
-                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600">
+                <h3 className="panel-title">刷新数据</h3>
+                <button onClick={() => setShowModal(false)} className="h-7 w-7 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <div className="space-y-3 mb-5">
-                <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                  <RefreshCw className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
+                <div className="flex items-start gap-3 p-3 bg-muted/60 border border-border border-l-[3px] border-l-primary rounded-r-md">
+                  <RefreshCw className="w-4 h-4 text-primary mt-0.5 shrink-0" />
                   <div>
-                    <div className="text-sm font-medium text-blue-800">全量刷新</div>
-                    <div className="text-xs text-blue-600">
+                    <div className="text-[13px] font-medium text-foreground">全量刷新</div>
+                    <div className="text-xs text-muted-foreground">
                       重新拉取知识图谱数据 + 重新运行 Agent 推荐引擎
                     </div>
                   </div>
                 </div>
 
-                <div className="text-xs text-slate-500 space-y-1">
+                <div className="text-xs text-muted-foreground space-y-1.5">
                   {STEPS.map((step, i) => {
                     const Icon = step.icon;
                     return (
                       <div key={step.id} className="flex items-center gap-2">
-                        <Icon className={`w-3.5 h-3.5 ${i < currentStepIdx ? 'text-green-400' : i === currentStepIdx && state.isUpdating ? 'text-blue-400' : 'text-slate-300'}`} />
-                        <span className={i <= currentStepIdx ? 'text-slate-700' : 'text-slate-400'}>
+                        <Icon className={`w-3.5 h-3.5 ${
+                          i < currentStepIdx ? 'text-[hsl(var(--success))]'
+                            : i === currentStepIdx && state.isUpdating ? 'text-primary'
+                            : 'text-muted-foreground/40'
+                        }`} />
+                        <span className={i <= currentStepIdx ? 'text-foreground' : 'text-muted-foreground/60'}>
                           {step.label}
                         </span>
                       </div>
@@ -141,7 +145,7 @@ export function VersionUpdateButton() {
 
               <button
                 onClick={handleUpdate}
-                className="w-full py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                className="w-full h-9 text-[13px] bg-primary text-primary-foreground rounded-md hover:bg-primary/90 shadow-xs transition-colors"
               >
                 开始刷新
               </button>
@@ -155,25 +159,25 @@ export function VersionUpdateButton() {
         {state.isUpdating && (
           <motion.div
             initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-6 right-6 z-50 bg-white rounded-xl shadow-lg p-4 w-72 border border-slate-200"
+            className="fixed bottom-6 right-6 z-50 panel-card shadow-md p-4 w-72"
           >
             <div className="flex items-center gap-2 mb-2">
-              <Loader className="w-4 h-4 text-blue-500 animate-spin" />
-              <span className="text-sm font-medium text-slate-700">正在刷新...</span>
+              <Loader className="w-4 h-4 text-primary animate-spin" />
+              <span className="text-[13px] font-medium text-foreground">正在刷新...</span>
             </div>
-            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div className="w-full h-1 bg-border rounded-sm overflow-hidden">
               <motion.div
-                className="h-full bg-blue-500 rounded-full"
+                className="h-full bg-primary"
                 initial={{ width: 0 }}
                 animate={{ width: `${state.versionUpdateProgress}%` }}
                 transition={{ type: 'tween', duration: 0.3 }}
               />
             </div>
-            <div className="flex justify-between mt-1">
-              <span className="text-[10px] text-slate-400">
+            <div className="flex justify-between mt-1.5">
+              <span className="text-[11px] text-muted-foreground">
                 {STEPS[currentStepIdx]?.label || '更新中'}
               </span>
-              <span className="text-[10px] text-slate-500">{state.versionUpdateProgress}%</span>
+              <span className="text-[11px] text-muted-foreground tabular-nums">{state.versionUpdateProgress}%</span>
             </div>
           </motion.div>
         )}

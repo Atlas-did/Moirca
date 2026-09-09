@@ -19,10 +19,8 @@ NetworkX 本地知识图谱服务
   - 图遍历推荐相关专业
   - 按城市/省份筛选院校
 """
-import json
-import os
-from typing import List, Dict, Optional, Set, Tuple
 from dataclasses import dataclass
+from typing import Dict, List, Optional
 
 import networkx as nx
 

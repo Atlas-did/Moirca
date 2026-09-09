@@ -5,11 +5,9 @@ Agent 3: 时效警犬（Freshness Dog）
 分析维度: 教育部专业目录变更、新增专业风险、撤销专业预警
 """
 from datetime import datetime
-from ..utils.llm_client import LLMClient
-from .base import BaseAgent, AgentContext
+
 from .agent6_fusion_alchemist import AgentOutput
-
-
+from .base import AgentContext, BaseAgent, freshness_with_marker
 
 
 def _latest_observed_time(ctx: AgentContext):
@@ -77,14 +75,17 @@ class Agent3FreshnessDog(BaseAgent):
 3. 该专业在教育部专业目录中的稳定性如何？"""
 
     def _parse_response(self, response: dict, ctx: AgentContext) -> AgentOutput:
+        # freshness 修复:只认目录变更观测自带的真实时间戳;无则显式「时间未知」,不伪装新鲜。
+        ts, unknown_mark = freshness_with_marker(ctx)
+        notes = response.get("stability", response.get("risk_warning", ""))
         return AgentOutput(
             agent_name=self.agent_name,
             profession_code=ctx.profession.code,
             raw_score=float(response.get("raw_score", 75)),
             confidence=float(response.get("confidence", 0.75)),
-            freshness_date=_latest_observed_time(ctx) or datetime.now(),
+            freshness_date=ts if ts else _latest_observed_time(ctx),
             source_count=2,
-            notes=response.get("stability", response.get("risk_warning", "")),
+            notes=f"{unknown_mark}{notes}" if unknown_mark else notes,
         )
 
     def _research_fallback(self, ctx: AgentContext) -> AgentOutput:
@@ -100,12 +101,13 @@ class Agent3FreshnessDog(BaseAgent):
         else:
             score, stability = 80, "基本稳定"
 
+        ts, unknown_mark = freshness_with_marker(ctx)
         return AgentOutput(
             agent_name=self.agent_name,
             profession_code=prof.code,
             raw_score=score,
             confidence=0.75,
-            freshness_date=_latest_observed_time(ctx) or datetime.now(),
+            freshness_date=ts if ts else _latest_observed_time(ctx),
             source_count=2,
-            notes=f"[规则降级] {stability}",
+            notes=f"[规则降级] {stability}{unknown_mark}",
         )

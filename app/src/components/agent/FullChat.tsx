@@ -88,22 +88,22 @@ export default function FullChat() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <div className="h-12 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+      <div className="h-12 bg-card border-b border-border flex items-center justify-between px-4 shrink-0">
         <div className="flex items-center gap-2">
-          <Bot className="w-5 h-5 text-blue-500" />
-          <span className="font-medium text-slate-700">多 Agent 对话</span>
+          <Bot className="w-[18px] h-[18px] text-primary" />
+          <span className="text-[13px] font-medium text-foreground">多 Agent 对话</span>
           {state.isAgentDebating && (
-            <span className="flex items-center gap-1 text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-bounce" />
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-[hsl(var(--warning))]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--warning))] animate-pulse" />
               Agent 辩论中
             </span>
           )}
         </div>
         <button
           onClick={() => dispatch({ type: 'TOGGLE_CHAT_FULLSCREEN' })}
-          className="text-slate-400 hover:text-slate-600 transition-colors"
+          className="h-8 w-8 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent flex items-center justify-center transition-colors"
           title="退出全屏"
         >
           <Minimize2 className="w-4 h-4" />
@@ -111,14 +111,12 @@ export default function FullChat() {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto thin-scrollbar p-4 space-y-3">
         {state.messages.length <= 1 && (
-          <div className="text-center py-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
-              <Bot className="w-8 h-8 text-white" />
-            </div>
-            <h3 className="text-lg font-medium text-slate-700 mb-1">Moirca 多 Agent 对话</h3>
-            <p className="text-sm text-slate-500 max-w-md mx-auto">
+          <div className="text-center py-10">
+            <Bot className="w-8 h-8 mx-auto mb-3 text-muted-foreground/40" />
+            <h3 className="text-sm font-semibold text-foreground mb-1">Moirca 多 Agent 对话</h3>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
               发送消息后 6 个 Agent 将并行辩论，从不同角度为你分析志愿填报问题
             </p>
           </div>
@@ -127,49 +125,50 @@ export default function FullChat() {
         <AnimatePresence>
           {state.messages.map(msg => (
             <motion.div
-              key={msg.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}
+              key={msg.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+              className={
+                msg.isUser
+                  ? 'flex justify-end px-2 py-2'
+                  : 'px-2 py-2 rounded-md transition-colors duration-150 hover:bg-accent/40'
+              }
             >
-              <div className={`flex gap-2 max-w-[80%] ${msg.isUser ? 'flex-row-reverse' : ''}`}>
-                {!msg.isUser && (
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 mt-1"
-                    style={{ backgroundColor: msg.agentColor || '#3b82f6' }}>
-                    {state.agents.find(a => a.id === msg.senderId)?.avatar || '🤖'}
-                  </div>
-                )}
-                <div className={`rounded-2xl px-4 py-2.5 text-sm ${
-                  msg.isUser
-                    ? 'bg-blue-500 text-white rounded-br-md'
-                    : 'bg-white border border-slate-200 text-slate-700 rounded-bl-md shadow-sm'
-                }`}>
-                  {!msg.isUser && (
-                    <div className="text-[11px] font-medium mb-1" style={{ color: msg.agentColor }}>
-                      {msg.senderName}
-                    </div>
-                  )}
-                  <div className="leading-relaxed whitespace-pre-wrap">{msg.content}</div>
+              {msg.isUser ? (
+                <div className="max-w-[80%] rounded-md rounded-br-sm px-3 py-2 text-[13px] leading-[1.6] bg-primary text-primary-foreground">
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
                 </div>
-              </div>
+              ) : (
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: msg.agentColor, opacity: 0.6 }}
+                    />
+                    <span className="text-[11px] font-medium text-foreground">{msg.senderName}</span>
+                    <span className="ml-auto text-[11px] tabular-nums text-muted-foreground">
+                      {new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <div className="text-[13px] leading-[1.6] text-foreground whitespace-pre-wrap">
+                    {msg.content}
+                  </div>
+                </div>
+              )}
             </motion.div>
           ))}
         </AnimatePresence>
 
         {state.isAgentDebating && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-center py-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-full px-4 py-2 flex items-center gap-2">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                <span className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: '150ms' }} />
-                <span className="w-2 h-2 rounded-full bg-yellow-400 animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
-              <span className="text-sm text-yellow-700">Agent 辩论中...</span>
-            </div>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-center py-3">
+            <span className="inline-flex items-center gap-1.5 text-[11px] text-[hsl(var(--warning))]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[hsl(var(--warning))] animate-pulse" />
+              Agent 辩论中...
+            </span>
           </motion.div>
         )}
       </div>
 
       {/* Input */}
-      <div className="border-t border-slate-200 p-3 bg-white shrink-0">
+      <div className="border-t border-border bg-card p-3 shrink-0">
         <div className="flex gap-2 max-w-3xl mx-auto">
           <input
             type="text" value={input}
@@ -177,18 +176,17 @@ export default function FullChat() {
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
             placeholder="输入你的问题，6 个 Agent 将并行辩论..."
             disabled={state.isAgentDebating}
-            className="flex-1 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all disabled:opacity-50"
+            className="flex-1 h-9 bg-background border border-input rounded-md px-3 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 transition-colors disabled:opacity-50"
           />
           <motion.button
-            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
             onClick={handleSend}
             disabled={!input.trim() || state.isAgentDebating}
-            className="w-10 h-10 rounded-xl bg-blue-500 text-white flex items-center justify-center disabled:opacity-40 transition-opacity"
+            className="w-9 h-9 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center shadow-xs disabled:opacity-40 transition-colors"
           >
             <Send className="w-4 h-4" />
           </motion.button>
         </div>
-        <p className="text-center text-[10px] text-slate-400 mt-2">Shift+Enter 换行 · Enter 发送 · 6 Agent 并行辩论</p>
+        <p className="text-center text-[11px] text-muted-foreground mt-2">Shift+Enter 换行 · Enter 发送 · 6 Agent 并行辩论</p>
       </div>
     </div>
   );

@@ -16,7 +16,7 @@ import os
 import threading
 import time
 import uuid
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, cast
 
 from ..config import Config
